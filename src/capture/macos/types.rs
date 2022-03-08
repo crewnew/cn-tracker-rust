@@ -1,8 +1,8 @@
 // MacOS capture types (must be cross-platform)
 use super::super::pc_common;
 use crate::prelude::*;
-use sysinfo::{Process, ProcessExt};
 use std::{sync::Arc, time::Duration};
+use sysinfo::{Process, ProcessExt};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct MacOSCaptureArgs {}
@@ -36,7 +36,7 @@ impl ExtractInfo for MacOSEventData {
         }
 
         let mut tags = Tags::new();
-        
+
         self.os_info.to_partial_general_software(&mut tags);
 
         for window in &self.windows {
@@ -52,7 +52,7 @@ impl ExtractInfo for MacOSEventData {
                 &cls,
                 Some(&window.process.exe),
                 None,
-                None
+                None,
             ));
         }
 
@@ -88,7 +88,7 @@ impl From<&Process> for MacOSProcessData {
             cwd: other.cwd().to_string_lossy().to_string(),
             memory_kB: other.memory() as i64,
             start_time: util::unix_epoch_millis_to_date((other.start_time() as i64) * 1000),
-            cpu_usage: Some(other.cpu_usage())
+            cpu_usage: Some(other.cpu_usage()),
         }
     }
 }

@@ -2,7 +2,8 @@ use super::super::pc_common::{KEYSTROKES, MOUSE_CLICKS};
 use core_foundation::runloop::{kCFRunLoopCommonModes, CFRunLoop, CFRunLoopRun};
 use core_graphics::event::{
     CGEvent, CGEventMask, CGEventTap, CGEventTapLocation, CGEventTapOptions, CGEventTapPlacement,
-    CGEventTapProxy, CGEventType::{self, KeyDown, LeftMouseDown, RightMouseDown}
+    CGEventTapProxy,
+    CGEventType::{self, KeyDown, LeftMouseDown, RightMouseDown},
 };
 use std::sync::atomic::Ordering;
 

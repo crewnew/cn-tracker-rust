@@ -82,7 +82,7 @@ impl MacOSCapturer {
                     system.refresh_process(sysinfo_pid);
                     if let Some(process) = system.process(sysinfo_pid) {
                         let mut title: Option<String> = None;
-                       
+
                         if accessibility_permission {
                             let app_ref = AXUIElementCreateApplication(pid);
 
@@ -114,18 +114,18 @@ impl MacOSCapturer {
                             }
                             CFRelease(app_ref as *const _);
                         }
-                        
+
                         let macos_window = MacOSWindow {
                             title,
-                            process: process.into()
+                            process: process.into(),
                         };
-                        
+
                         windows.push(macos_window);
                     }
                 }
             }
         }
-        
+
         windows
     }
 }
@@ -133,7 +133,7 @@ impl MacOSCapturer {
 impl Capturer for MacOSCapturer {
     fn capture(&mut self) -> anyhow::Result<EventData> {
         let windows = self.get_windows();
-        
+
         Ok(EventData::macos_v1(MacOSEventData {
             os_info: self.os_info.clone(),
             windows,

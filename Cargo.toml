@@ -83,8 +83,9 @@ tracing = { version = "0.1.29", features = ["log"] }
 tracing-appender = "0.2.0"
 tracing-subscriber = { version = "0.3.3", features = ["env-filter"] }
 rustc-hash = "1.1.0"
-graphql_client = "0.10.0"
 reqwest = {version = "0.11.9", features = ["json"]}
+gql_client = {version = "1.0.2", optional = true}
+erased-serde = "0.3.18"
 
 [target.'cfg(windows)'.dependencies]
 winapi = { version = "0.3.9", features = ["winuser", "processthreadsapi","handleapi", "psapi"] }
@@ -104,6 +105,7 @@ accessibility-sys = "0.1.3"
 [features]
 sync = ["datachannel"]
 openssl-vendored = ["openssl/vendored"]
+graphql = ["gql_client"]
 
 [profile.dev.package."*"]
 opt-level = 3

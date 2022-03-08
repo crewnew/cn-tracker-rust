@@ -1,9 +1,3 @@
-
-
-
-
-
-
 /*
 pub struct YieldEventsFromTrbttDatabase<'a> {
     pub db: SqlitePool,

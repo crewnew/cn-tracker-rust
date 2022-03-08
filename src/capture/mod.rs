@@ -1,7 +1,7 @@
 pub mod linux;
+pub mod macos;
 pub mod pc_common;
 pub mod windows;
-pub mod macos;
 
 use std::time::Duration;
 
@@ -30,9 +30,9 @@ fn default_capture_args() -> CaptureArgs {
     });
     #[cfg(target_os = "windows")]
     return CaptureArgs::Windows(WindowsCaptureArgs {});
-    
+
     #[cfg(target_os = "macos")]
-    return CaptureArgs::MacOS(MacOSCaptureArgs{});
+    return CaptureArgs::MacOS(MacOSCaptureArgs {});
 }
 
 impl CapturerCreator for NativeDefaultArgs {
@@ -78,13 +78,13 @@ pub async fn capture_loop(db: DatyBasy, config: CaptureConfig) -> anyhow::Result
             data,
         };
         let ins: NewDbEvent = act.try_into()?;
-        
-        if cfg!(feature = "graphql"){
+
+        if cfg!(feature = "graphql") {
             use crate::graphql;
             // ToDo: Instead of cloning, share the data as reference.
-            graphql::insert_tracker_event(ins.clone()).await?;
+            graphql::Event::from(ins.clone()).save_to_db().await?;
         }
-        
+
         db.insert_events_if_needed(vec![ins])
             .await
             .context("Could not insert captured event")?;

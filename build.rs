@@ -1,4 +1,4 @@
-fn main(){
+fn main() {
     let target = std::env::var("CARGO_CFG_TARGET_OS").unwrap();
 
     if target == "macos" {

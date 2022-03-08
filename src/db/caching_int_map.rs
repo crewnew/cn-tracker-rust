@@ -32,7 +32,8 @@ impl CachingIntMap {
                 .or_insert_with(|| Arc::new(RwLock::new(HashMap::with_capacity(10_000))))
                 .clone(),
             get: format!("select id from {} where {} = ?1", table, keycol),
-            put: format!( // the on conflict clause resolves a race condition by returning the existing id
+            put: format!(
+                // the on conflict clause resolves a race condition by returning the existing id
                 "insert into {} {} on conflict ({}) do update set id=id returning id",
                 table, cols, keycol
             ),
