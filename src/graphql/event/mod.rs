@@ -1,4 +1,4 @@
-use super::{Id, Variables, CLIENT};
+use super::{Id, Variables, CLIENT, SaveToDb};
 use crate::{prelude::NewDbEvent, util::random_uuid};
 
 const CREATE_EVENT_MUTATION: &str = include_str!("CreateEvent.graphql");
@@ -27,23 +27,15 @@ impl From<NewDbEvent> for Event {
     }
 }
 
-impl Event {
-    /// Saves the Event into the Database using a GraphQL Mutation.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use graphql::Event;
-    /// let event = Event::default();
-    /// event.save_to_db().await?;
-    /// ```
-    pub async fn save_to_db(&self) -> anyhow::Result<()> {
+#[async_trait]
+impl SaveToDb for Event {
+    async fn save_to_db(&self) -> anyohw::Result<()> {
         let variables = Variables { data: self };
         let data = CLIENT
             .query_with_vars::<Id, Variables>(CREATE_EVENT_MUTATION, variables)
             .await
             .map_err(|err| anyhow::anyhow!("Couldn't save data: {}", err))?;
-        Ok(())
+        Ok(()) 
     }
 }
 

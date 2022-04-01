@@ -11,6 +11,11 @@ lazy_static! {
     );
 }
 
+#[async_trait]
+trait SaveToDb {
+    async fn save_to_db(&self) -> anyhow::Result<()>;
+}
+
 #[derive(Serialize)]
 struct Variables<'a> {
     data: &'a (dyn erased_serde::Serialize + Send + Sync),
@@ -22,5 +27,7 @@ struct Id {
 }
 
 mod event;
+mod rule;
 
 pub use event::*;
+pub use rule::*;

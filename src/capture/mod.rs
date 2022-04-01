@@ -78,11 +78,10 @@ pub async fn capture_loop(db: DatyBasy, config: CaptureConfig) -> anyhow::Result
             data,
         };
         let ins: NewDbEvent = act.try_into()?;
-
-        if cfg!(feature = "graphql") {
-            use crate::graphql;
-            // ToDo: Instead of cloning, share the data as reference.
-            graphql::Event::from(ins.clone()).save_to_db().await?;
+        
+        #[cfg(feature = "graphql")]
+        {
+           crate::graphql::Event::from(ins.clone()).save_to_db().await?;
         }
 
         db.insert_events_if_needed(vec![ins])

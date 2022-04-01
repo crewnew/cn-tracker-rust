@@ -1,0 +1,21 @@
+PRINT "normal print"
+
+IF "a" EQ "a"
+  PRINT "if"
+
+IF "b" EQ "a"
+ PRINT "no run"
+ELSEIF "a" EQ "a"
+ PRINT "elseif"
+
+IF "b" EQ "a"
+ PRINT "no run"
+ELSE
+ PRINT "else"
+
+IF "a" EQ "b"
+ PRINT "no run"
+ELSE IF "a" EQ "b"
+ PRINT "no run"
+ELSE IF "a" EQ "a"
+ PRINT "else if else if"
