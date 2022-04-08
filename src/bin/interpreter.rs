@@ -13,11 +13,11 @@ fn main() -> anyhow::Result<()> {
     // 0.009ms execution in release on m1
     let string = include_str!("script");
     let now = Instant::now();
-    let executables = parse(string);
+    let executables = parse(string)?;
     println!("Parsed in {}ns", now.elapsed().as_nanos());
     let now = Instant::now();
-    for executable in executables {
-        executable.execute()?;
+    for executable in executables.1 {
+        executable.execute().ok();
     }
     println!("Executed in {}ns", now.elapsed().as_nanos());
 
