@@ -1,7 +1,10 @@
 // MacOS capture types (must be cross-platform)
 use super::super::pc_common;
-use crate::prelude::*;
-use std::{sync::Arc, time::Duration};
+use crate::{
+    prelude::*,
+    scripting::{Variable, VariableMapType}
+};
+use std::{sync::Arc, rc::Rc, time::Duration, collections::HashMap};
 use sysinfo::{Process, ProcessExt};
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -20,6 +23,8 @@ impl CapturerCreator for MacOSCaptureArgs {
         anyhow::bail!("Not on MacOS!")
     }
 }
+
+
 
 #[derive(Debug, Serialize, Deserialize, TypeScriptify, Clone)]
 pub struct MacOSEventData {
@@ -64,6 +69,33 @@ impl ExtractInfo for MacOSEventData {
 pub struct MacOSWindow {
     pub title: Option<String>,
     pub process: MacOSProcessData,
+}
+
+impl From<MacOSWindow> for Variable {
+    fn from(data: MacOSWindow) -> Self {
+        Variable::Map(data.into())
+    }
+}
+
+impl From<MacOSWindow> for VariableMapType {
+    fn from(data: MacOSWindow) -> Self {
+        let mut map = Self::default();
+        if let Some(title) = data.title {
+            map.insert(Rc::new("TITLE".into()), title.into());
+        }
+        let data = data.process;
+        map.insert(Rc::new("NAME".into()), data.name.into());
+        map.insert(Rc::new("CMD".into()), data.cmd.iter().map(|a| a.as_str()).collect::<String>().into());
+        map.insert(Rc::new("EXE".into()), data.exe.into());
+        map.insert(Rc::new("CWD".into()), data.cwd.into());
+        map.insert(Rc::new("MEMORY".into()), (data.memory_kB as usize).into());
+        map.insert(Rc::new("STATUS".into()), data.status.into());
+        map.insert(Rc::new("START_TIME".into()), data.start_time.to_string().into());
+        if let Some(cpu_usage) = data.cpu_usage {
+            map.insert(Rc::new("CPU_USAGE".into()), cpu_usage.into()); 
+        }
+        map
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize, TypeScriptify, Clone)]

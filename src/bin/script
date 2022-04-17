@@ -1,21 +1,27 @@
+EVERY 5 SECONDS
+
+GET_WINDOWS
+
+ITERATE WINDOWS
+  PRINT "--- WINDOW ---"
+  PRINT NAME
+END
+
 PRINT "normal print"
 
-IF "a" EQ "a"
-  PRINT "if"
-
-IF "b" EQ "a"
- PRINT "no run"
-ELSEIF "a" EQ "a"
- PRINT "elseif"
-
-IF "b" EQ "a"
- PRINT "no run"
-ELSE
- PRINT "else"
+IF a EQ "a"
+  PRINT "variable"
+END
 
 IF "a" EQ "b"
  PRINT "no run"
-ELSE IF "a" EQ "b"
+ PRINT "no run -1"
+ELSEIF "a" EQ "b"
  PRINT "no run"
-ELSE IF "a" EQ "a"
+ELSEIF "a" EQ "a"
  PRINT "else if else if"
+END
+
+IF a IN ["a", "b"]
+  PRINT 'hello'
+END

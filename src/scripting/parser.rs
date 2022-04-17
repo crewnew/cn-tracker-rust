@@ -1,15 +1,31 @@
-use super::{Conditional, Executable, Instruction, Variable, VARIABLES_MAP};
-use crate::scripting::ConditionalFn;
+use super::{Conditional, Executable, Instruction, Iterative, Variable, VariableMapType};
+use crate::{
+    capture::{CapturerCreator, NativeDefaultArgs},
+    events::EventData,
+    scripting::ConditionalFn,
+};
 use anyhow::Context;
-use std::cmp::Ordering;
+use std::{cell::UnsafeCell, cmp::Ordering, rc::Rc};
+
+/// SAFETY: The use of a raw pointer (`*mut VariableMapType`) is safe as long as
+/// you ensure that the value won't get dropped before the execution finishes,
+/// which will be the case as long as you execute everything in a sequential order,
+/// but if you try to do anything concurrently you should switch to
+/// `Arc<ReadWrite<VariableMapType>>`, because that'll ensure there are no
+/// data races and undefined behaviour in the case of mutable borrow of a the value.
+/// Right now there's no chance of this causing undefined behaviour, because the
+/// current execution model does not include concurrency and all executables are executed
+/// one after another.
 
 /// Returns the seconds to wait for execution and a vector of executable pointers.
-pub fn parse(string: impl AsRef<str>) -> anyhow::Result<(usize, Vec<Box<dyn Executable>>)> {
-    VARIABLES_MAP
-        .write()
-        .unwrap()
-        .insert("a".to_owned(), "a".into());
-    let mut executables: Vec<Box<dyn Executable>> = vec![];
+pub fn parse(
+    string: impl AsRef<str>,
+    variable_map: *mut VariableMapType,
+) -> anyhow::Result<(usize, Vec<Box<dyn Executable>>)> {
+    unsafe {
+        //(&mut *variable_map).insert("a".into(), "a".into());
+    }
+    let mut executables = vec![];
 
     let mut timeout: Option<usize> = None;
 
@@ -21,7 +37,6 @@ pub fn parse(string: impl AsRef<str>) -> anyhow::Result<(usize, Vec<Box<dyn Exec
 
     for line in lines_split {
         if line.is_empty() {
-            lines.push(vec![]);
             continue;
         }
 
@@ -40,11 +55,6 @@ pub fn parse(string: impl AsRef<str>) -> anyhow::Result<(usize, Vec<Box<dyn Exec
 
     while line_pos < lines.len() {
         let line = &lines[line_pos];
-
-        if line.is_empty() {
-            line_pos += 1;
-            continue;
-        }
 
         let word = line[0];
 
@@ -80,11 +90,14 @@ pub fn parse(string: impl AsRef<str>) -> anyhow::Result<(usize, Vec<Box<dyn Exec
                 };
             }
             "IF" => {
-                executables.push(Box::new(parse_conditional(&lines, &mut line_pos)));
+                executables.push(parse_conditional(&lines, &mut line_pos, variable_map)?.into());
+            }
+            "ITERATE" => {
+                executables.push(parse_iterator(&lines, &mut line_pos, variable_map)?.into());
             }
             _ => {
-                if let Some(instruction) = parse_instruction(&line) {
-                    executables.push(Box::new(instruction));
+                if let Some(instruction) = parse_instruction(&line, variable_map)? {
+                    executables.push(instruction.into());
                 }
             }
         };
@@ -98,22 +111,118 @@ pub fn parse(string: impl AsRef<str>) -> anyhow::Result<(usize, Vec<Box<dyn Exec
     }
 }
 
-fn parse_instruction(line: &[&str]) -> Option<Instruction> {
+fn parse_instruction(
+    line: &[&str],
+    variable_map: *mut VariableMapType,
+) -> anyhow::Result<Option<Instruction>> {
     let word = line[0];
     match word {
         "PRINT" => {
-            let word = line[1][1..line[1].len() - 1].to_owned();
-            let function = move || -> anyhow::Result<()> {
-                println!("{}", word);
+            let word = line[1];
+            let is_string = is_string(word);
+            
+            let word = if is_string {
+                word[1..word.len() - 1].to_owned()
+            } else {
+                word.to_owned()
+            };
+
+            let function: Instruction = if is_string {
+                Box::new(move || {
+                    println!("{}", word);
+                    Ok(())
+                }).into()
+            } else {
+                Box::new(move || {
+                    let map = unsafe { &*variable_map };
+                    
+                    let variable = match map.get(&word) {
+                        Some(variable) => variable,
+                        None => anyhow::bail!("Couldn't find the Variable with Key {}", word),
+                    };
+                    
+                    if let Variable::RcStr(string) = variable {
+                        println!("{}", string);
+                    }
+
+                    Ok(())
+                })
+                .into()
+            };
+            Ok(Some(function.into()))
+        }
+        "GET_WINDOWS" => {
+            let args = NativeDefaultArgs {};
+            let mut capturer = args.create_capturer().expect("Couldn't create Capturer");
+            let function = move || {
+                use EventData::*;
+                let map = unsafe { &mut *variable_map };
+                match capturer.capture()? {
+                    windows_v1(data) => {}
+                    macos_v1(data) => {
+                        let vec: Vec<Variable> =
+                            data.windows.into_iter().map(|w| w.into()).collect();
+                        map.insert(Rc::new("WINDOWS".into()), vec.into());
+                    }
+                    x11_v2(data) => {}
+                    _ => (),
+                };
                 Ok(())
             };
-            Some(function.into())
+            Ok(Some(function.into()))
         }
-        _ => None,
+        _ => Ok(None),
     }
 }
 
-fn parse_conditional(lines: &Vec<Vec<&str>>, line_pos: &mut usize) -> Conditional {
+fn parse_iterator(
+    lines: &Vec<Vec<&str>>,
+    line_pos: &mut usize,
+    variable_map: *mut VariableMapType,
+) -> anyhow::Result<Iterative> {
+    let mut iterative = Iterative::new("".into(), variable_map);
+
+    while *line_pos < lines.len() {
+        let line = &lines[*line_pos];
+
+        let mut i = 0;
+
+        while i < line.len() {
+            let word = line[i];
+            match word {
+                "ITERATE" => {
+                    let key = match line.get(i + 1) {
+                        Some(key) => key,
+                        None => anyhow::bail!(
+                            "You haven't provided a Variable to ITERATE\nExample: ITERATE WINDOWS"
+                        ),
+                    };
+
+                    iterative.change_key(key.to_string())
+                }
+                "IF" => iterative.push(parse_conditional(lines, line_pos, variable_map)?.into()),
+                "END" => return Ok(iterative),
+                _ => {
+                    if let Some(instruction) = parse_instruction(line, variable_map)? {
+                        iterative.push(instruction.into());
+                    }
+                }
+            };
+
+            i += 1;
+        }
+
+        *line_pos += 1;
+    }
+
+    Ok(iterative)
+}
+
+fn parse_conditional(
+    lines: &Vec<Vec<&str>>,
+    line_pos: &mut usize,
+    variable_map: *mut VariableMapType,
+) -> anyhow::Result<Conditional> {
     #[derive(Debug)]
     enum Condition {
         If,
@@ -130,10 +239,6 @@ fn parse_conditional(lines: &Vec<Vec<&str>>, line_pos: &mut usize) -> Conditiona
 
     while *line_pos < lines.len() {
         let line = &lines[*line_pos];
-
-        if line.is_empty() {
-            break;
-        }
 
         let mut conditions_pos = 0;
 
@@ -196,6 +301,7 @@ fn parse_conditional(lines: &Vec<Vec<&str>>, line_pos: &mut usize) -> Conditiona
             };
 
             match word {
+                "END" => return Ok(conditional),
                 "ELSEIF" => {
                     else_if_conditional_pos = conditional
                         .else_if_conditionals
@@ -206,7 +312,7 @@ fn parse_conditional(lines: &Vec<Vec<&str>>, line_pos: &mut usize) -> Conditiona
                 }
                 "ELSE" => {
                     condition = Else;
-                    conditional.else_instructions = Some(Default::default());
+                    conditional.else_executables = Some(Default::default());
                 }
                 "NOT" => not_statement = true,
                 "OR" => {
@@ -244,7 +350,7 @@ fn parse_conditional(lines: &Vec<Vec<&str>>, line_pos: &mut usize) -> Conditiona
                     };
 
                     let conditional_fn: ConditionalFn = Box::new(move || {
-                        let map = VARIABLES_MAP.read().unwrap();
+                        let map = unsafe { &*variable_map };
 
                         if is_string_first && !is_string_second {
                             if let Some(variable) = map.get(&second) {
@@ -256,6 +362,8 @@ fn parse_conditional(lines: &Vec<Vec<&str>>, line_pos: &mut usize) -> Conditiona
                                 return *variable == second;
                             }
                             false
+                        } else if is_string_first && is_string_second {
+                            first == second
                         } else {
                             let first = match map.get(&first) {
                                 Some(first) => first,
@@ -302,7 +410,7 @@ fn parse_conditional(lines: &Vec<Vec<&str>>, line_pos: &mut usize) -> Conditiona
                                     continue;
                                 }
 
-                                let map = VARIABLES_MAP.read().unwrap();
+                                let map = unsafe { &*variable_map };
 
                                 if let Some(variable) = map.get(string) {
                                     if is_string_first {
@@ -330,7 +438,7 @@ fn parse_conditional(lines: &Vec<Vec<&str>>, line_pos: &mut usize) -> Conditiona
                         })
                     } else {
                         Box::new(move || {
-                            let map = VARIABLES_MAP.read().unwrap();
+                            let map = unsafe { &*variable_map };
 
                             let variable = match map.get(&second) {
                                 Some(variable) => variable,
@@ -373,19 +481,34 @@ fn parse_conditional(lines: &Vec<Vec<&str>>, line_pos: &mut usize) -> Conditiona
                         conditions.push(conditional_fn);
                     }
                 }
+                "ITERATE" => {
+                    let iterator = parse_iterator(&lines, line_pos, variable_map)?.into();
+                    match condition {
+                        If => conditional.executables.push(iterator),
+                        ElseIf => conditional.else_if_conditionals.as_mut().unwrap()
+                            [else_if_conditional_pos]
+                            .executables
+                            .push(iterator),
+                        Else => conditional
+                            .else_executables
+                            .as_mut()
+                            .unwrap()
+                            .push(iterator),
+                    };
+                }
                 _ => {
-                    if let Some(instruction) = parse_instruction(&line) {
+                    if let Some(instruction) = parse_instruction(&line, variable_map)? {
                         match condition {
-                            If => conditional.instructions.push(instruction),
+                            If => conditional.executables.push(instruction.into()),
                             ElseIf => conditional.else_if_conditionals.as_mut().unwrap()
                                 [else_if_conditional_pos]
-                                .instructions
-                                .push(instruction),
+                                .executables
+                                .push(instruction.into()),
                             Else => conditional
-                                .else_instructions
+                                .else_executables
                                 .as_mut()
                                 .unwrap()
-                                .push(instruction),
+                                .push(instruction.into()),
                         };
                         break;
                     }
@@ -398,7 +521,7 @@ fn parse_conditional(lines: &Vec<Vec<&str>>, line_pos: &mut usize) -> Conditiona
         *line_pos += 1;
     }
 
-    conditional
+    Ok(conditional)
 }
 
 /// Used to determine if passed value is a string and not a variable.

@@ -1,25 +1,24 @@
 use std::{
-    cell::RefCell,
+    cell::UnsafeCell,
     io::{stdin, Read},
     time::Instant,
     rc::Rc,
 };
+use rustc_hash::FxHashMap;
 use timetrackrs::scripting::*;
 
 fn main() -> anyhow::Result<()> {
-    // 0.25ms parse in debug on m1
-    // 0.022ms execution in debug on m1
-    // 0.08ms parse in release on m1
-    // 0.009ms execution in release on m1
     let string = include_str!("script");
+    // variable_map, must always outlive executables, if it's dropped any earlier it'll cause
+    // undefined behaviour, because only a raw pointer is passed to the executables
+    let mut variable_map = FxHashMap::default();
+    let mut executables = parse(string, (&mut variable_map as *mut _))?;
     let now = Instant::now();
-    let executables = parse(string)?;
-    println!("Parsed in {}ns", now.elapsed().as_nanos());
-    let now = Instant::now();
-    for executable in executables.1 {
-        executable.execute().ok();
+    for (i, mut executable) in executables.1.iter_mut().enumerate() {
+       if let Err(err) = executable.execute() {
+            println!("{}", err);
+       }
     }
-    println!("Executed in {}ns", now.elapsed().as_nanos());
 
     Ok(())
 }
