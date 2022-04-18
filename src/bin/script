@@ -9,6 +9,12 @@ END
 
 PRINT "normal print"
 
+IF "a" EQ "a"
+  IF "b" EQ "b"
+    PRINT "IF inside IF"
+  END
+END
+
 IF a EQ "a"
   PRINT "variable"
 END

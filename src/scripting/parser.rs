@@ -120,7 +120,7 @@ fn parse_instruction(
         "PRINT" => {
             let word = line[1];
             let is_string = is_string(word);
-            
+
             let word = if is_string {
                 word[1..word.len() - 1].to_owned()
             } else {
@@ -131,16 +131,17 @@ fn parse_instruction(
                 Box::new(move || {
                     println!("{}", word);
                     Ok(())
-                }).into()
+                })
+                .into()
             } else {
                 Box::new(move || {
                     let map = unsafe { &*variable_map };
-                    
+
                     let variable = match map.get(&word) {
                         Some(variable) => variable,
                         None => anyhow::bail!("Couldn't find the Variable with Key {}", word),
                     };
-                    
+
                     if let Variable::RcStr(string) = variable {
                         println!("{}", string);
                     }
@@ -233,6 +234,8 @@ fn parse_conditional(
 
     let mut conditional = Conditional::default();
 
+    let mut first_if_passed = false;
+
     let mut condition = If;
 
     let mut else_if_conditional_pos = 0;
@@ -301,6 +304,25 @@ fn parse_conditional(
             };
 
             match word {
+                "IF" => match first_if_passed {
+                    false => first_if_passed = true,
+                    true => {
+                        let executable: Box<dyn Executable> =
+                            parse_conditional(lines, line_pos, variable_map)?.into();
+                        match condition {
+                            If => conditional.executables.push(executable),
+                            ElseIf => conditional.else_if_conditionals.as_mut().unwrap()
+                                [else_if_conditional_pos]
+                                .executables
+                                .push(executable),
+                            Else => conditional
+                                .else_executables
+                                .as_mut()
+                                .unwrap()
+                                .push(executable),
+                        };
+                    }
+                },
                 "END" => return Ok(conditional),
                 "ELSEIF" => {
                     else_if_conditional_pos = conditional
