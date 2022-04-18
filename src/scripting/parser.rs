@@ -183,6 +183,8 @@ fn parse_iterator(
 ) -> anyhow::Result<Iterative> {
     let mut iterative = Iterative::new("".into(), variable_map);
 
+    let mut first_iterative_passed = false;
+
     while *line_pos < lines.len() {
         let line = &lines[*line_pos];
 
@@ -192,14 +194,22 @@ fn parse_iterator(
             let word = line[i];
             match word {
                 "ITERATE" => {
-                    let key = match line.get(i + 1) {
-                        Some(key) => key,
-                        None => anyhow::bail!(
+                    match first_iterative_passed {
+                        false => {
+                            first_iterative_passed = true;
+                            let key = match line.get(i + 1) {
+                                Some(key) => key,
+                                None => anyhow::bail!(
                             "You haven't provided a Variable to ITERATE\nExample: ITERATE WINDOWS"
                         ),
-                    };
+                            };
 
-                    iterative.change_key(key.to_string())
+                            iterative.change_key(key.to_string());
+                        }
+                        true => {
+                            iterative.push(parse_iterator(lines, line_pos, variable_map)?.into())
+                        }
+                    };
                 }
                 "IF" => iterative.push(parse_conditional(lines, line_pos, variable_map)?.into()),
                 "END" => return Ok(iterative),
