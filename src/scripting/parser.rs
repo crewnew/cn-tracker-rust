@@ -5,6 +5,7 @@ use crate::{
     scripting::ConditionalFn,
 };
 use anyhow::Context;
+use regex::Regex;
 use std::{cell::UnsafeCell, cmp::Ordering, rc::Rc};
 
 /// SAFETY: The use of a raw pointer (`*mut VariableMapType`) is safe as long as
@@ -354,12 +355,43 @@ fn parse_conditional(
                         _ => (),
                     };
                 }
+                "MATCH" => {
+                    let first = line[i - 1];
+
+                    let regex = Regex::new(&first[1..first.len() - 1])?;
+
+                    let second = line[i + 1];
+
+                    let is_string_second = is_string(second);
+
+                    let second = if is_string_second {
+                        second[1..second.len() - 1].to_owned()
+                    } else {
+                        second.to_owned()
+                    };
+
+                    let conditional_fn = Box::new(move || {
+                        if is_string_second {
+                            return regex.is_match(&second);
+                        }
+
+                        let map = unsafe { &*variable_map };
+
+                        if let Some(Variable::RcStr(string)) = map.get(&second) {
+                            return regex.is_match(string);
+                        }
+
+                        false
+                    });
+
+                    if let Some(conditions) = conditions {
+                        conditions.push(conditional_fn)
+                    }
+                }
                 "EQ" => {
                     let space = if not_statement { 2 } else { 1 };
 
-                    i -= space;
-
-                    let first = line[i];
+                    let first = line[i - space];
 
                     let is_string_first = is_string(first);
 
@@ -369,9 +401,7 @@ fn parse_conditional(
                         first.to_owned()
                     };
 
-                    i += space + 1;
-
-                    let second = line[i];
+                    let second = line[i + space];
 
                     let is_string_second = is_string(second);
 
@@ -594,7 +624,7 @@ fn get_word_positions(line: &str) -> Vec<(usize, usize)> {
                 }
                 previous_position = i;
             }
-            '\"' | '\'' => {
+            '\"' | '\'' | '`' => {
                 match string_literal {
                     Some(a) if a == c => {
                         word_positions.push((previous_position, i + 1));
