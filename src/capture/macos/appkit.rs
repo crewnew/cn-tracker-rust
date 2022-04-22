@@ -1,4 +1,7 @@
-use super::types::*;
+use super::{
+    types::*,
+    super::pc_common::{Event, Window, Process}
+};
 use crate::prelude::*;
 
 use accessibility_sys::{
@@ -42,13 +45,13 @@ impl MacOSCapturer {
 
     /// Gets all currently running apps that may have UIs and are visible in the dock.
     /// Reference: https://developer.apple.com/documentation/appkit/nsapplicationactivationpolicy?language=objc
-    pub fn get_windows(&mut self) -> Vec<MacOSWindow> {
+    pub fn get_windows(&mut self) -> Vec<Window>{
         let MacOSCapturer {
             accessibility_permission,
             ..
         } = *self;
 
-        let mut windows: Vec<MacOSWindow> = vec![];
+        let mut windows: Vec<Window> = vec![];
 
         let mut system = System::new();
 
@@ -115,7 +118,7 @@ impl MacOSCapturer {
                             CFRelease(app_ref as *const _);
                         }
 
-                        let macos_window = MacOSWindow {
+                        let macos_window = Window {
                             title,
                             process: process.into(),
                         };
@@ -131,11 +134,10 @@ impl MacOSCapturer {
 }
 
 impl Capturer for MacOSCapturer {
-    fn capture(&mut self) -> anyhow::Result<EventData> {
+    fn capture(&mut self) -> anyhow::Result<Event> {
         let windows = self.get_windows();
 
-        Ok(EventData::macos_v1(MacOSEventData {
-            os_info: self.os_info.clone(),
+        Ok(Event {
             windows,
             duration_since_user_input: user_idle::UserIdle::get_time()
                 .map(|e| e.duration())
@@ -145,7 +147,8 @@ impl Capturer for MacOSCapturer {
                     log::warn!("{}", e);
                     Duration::ZERO
                 }),
-        }))
+                timestamp: Utc::now().timestamp()
+        })
     }
 }
 

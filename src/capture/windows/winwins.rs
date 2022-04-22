@@ -1,9 +1,14 @@
 use std::{collections::HashMap, ffi::OsString, slice};
 
-use super::types::*;
+use super::{
+    types::*,
+    super::pc_common::{Event, Window, Process}
+};
 use crate::prelude::*;
 use regex::Regex;
 use winapi::shared::windef::HWND;
+use chrono::Utc;
+use sysinfo::{System, Pid, SystemExt, ProcessExt};
 
 pub struct WindowsCapturer {
     os_info: util::OsInfo,
@@ -36,18 +41,11 @@ fn ol(process_id: i64) -> anyhow::Result<Option<WmiInfo>> {
     Ok(None)
 }
 impl Capturer for WindowsCapturer {
-    fn capture(&mut self) -> anyhow::Result<EventData> {
+    fn capture(&mut self) -> anyhow::Result<Event> {
         let focused_window = get_foreground_window().map(|f| get_window_id(f));
-        Ok(EventData::windows_v1(WindowsEventData {
-            os_info: self.os_info.clone(),
-            focused_window,
+        Ok(
+            Event {
             windows: get_all_windows(true),
-            wifi: get_wifi_ssid()
-                .context("could not get wifi")
-                .unwrap_or_else(|e| {
-                    log::warn!("{}", e);
-                    return None;
-                }),
             duration_since_user_input: user_idle::UserIdle::get_time()
                 .map(|e| e.duration())
                 .map_err(|e| anyhow::Error::msg(e))
@@ -56,7 +54,8 @@ impl Capturer for WindowsCapturer {
                     log::warn!("{}", e);
                     return Duration::ZERO;
                 }),
-        }))
+                timestamp: Utc::now().timestamp()
+        })
     }
 }
 
@@ -169,7 +168,7 @@ pub fn is_alt_tab_window(hwnd: HWND) -> bool {
 // this was way harder than it should have been
 // return None when no access rights
 #[allow(dead_code)]
-pub fn get_window_process(hwnd: HWND) -> Option<(i64, String)> {
+pub fn get_window_process(hwnd: HWND, system: &mut System) -> Option<Process> {
     unsafe {
         use winapi::um::psapi::GetModuleFileNameExW;
         use winapi::um::winuser::GetWindowThreadProcessId;
@@ -177,28 +176,12 @@ pub fn get_window_process(hwnd: HWND) -> Option<(i64, String)> {
         let mut proc_id: winapi::shared::minwindef::DWORD = 0;
         /*let thread_id =*/
         GetWindowThreadProcessId(hwnd, &mut proc_id);
-        use winapi::um::winnt::{PROCESS_QUERY_INFORMATION, PROCESS_VM_READ};
-
-        let phandle = winapi::um::processthreadsapi::OpenProcess(
-            PROCESS_QUERY_INFORMATION | PROCESS_VM_READ,
-            0,
-            proc_id,
-        );
-        let ret = if phandle != std::ptr::null_mut() {
-            // paths can be longer than MAX_PATH (smh). Most people query repeatedly with size*=2 until it fits.
-            let size = winapi::shared::minwindef::MAX_PATH as u32;
-            let mut title: Vec<u16> = Vec::with_capacity(size as usize);
-            let read_len =
-                GetModuleFileNameExW(phandle, std::ptr::null_mut(), title.as_mut_ptr(), size);
-            if read_len > 0 {
-                title.set_len(read_len as usize);
-            }
-            Some((proc_id as i64, String::from_utf16_lossy(&title)))
-        } else {
-            None
-        };
-        winapi::um::handleapi::CloseHandle(phandle);
-        ret
+        let pid = Pid::from(proc_id as usize);
+        system.refresh_process(pid);
+        match system.process(pid) {
+            Some(process) => Some(process.into()),
+            None => None
+        }
     }
 }
 
@@ -218,12 +201,15 @@ pub fn get_window_class_name(hwnd: HWND) -> String {
 }
 
 #[allow(dead_code)]
-pub fn get_all_windows(filter_alt_tab: bool) -> Vec<WindowsWindow> {
+pub fn get_all_windows(filter_alt_tab: bool) -> Vec<Window> {
     log::debug!("getting windows!");
     let mut vec = Vec::new();
+    let mut system = System::new();
     let a = |hwnd| -> EnumResult {
         if !filter_alt_tab || is_alt_tab_window(hwnd) {
-            vec.push(map_hwnd(hwnd))
+            if let Some(window) = map_hwnd(hwnd, &mut system) {
+                vec.push(window);
+            }
         } else {
             log::debug!(
                 "Skipping window (not-alt-tabbable): {hwnd:?}: {}",
@@ -364,22 +350,13 @@ fn parse_lp_cmd_line(lp_cmd_line: &str) -> Vec<String> {
     ret_val
 }
 
-fn map_hwnd(hwnd: HWND) -> WindowsWindow {
-    let exe_info = get_window_process(hwnd);
-    let monk = exe_info.as_ref().and_then(|exe_info| match ol(exe_info.0) {
-        Ok(e) => e,
-        Err(e) => {
-            log::warn!("error getting exe info {:?}", e);
-            None
-        }
-    });
-    WindowsWindow {
-        window_id: get_window_id(hwnd),
-        title: get_window_title(hwnd),
-        wclass: get_window_class_name(hwnd),
-        process_id: exe_info.as_ref().map(|exe_info| exe_info.0),
-        exe: exe_info.map(|exe_info| exe_info.1),
-        command_line: monk.as_ref().map(|m| parse_lp_cmd_line(&m.command_line)),
-        process_started: monk.as_ref().map(|m| m.creation_date.0.with_timezone(&Utc)),
+fn map_hwnd(hwnd: HWND, system: &mut System) -> Option<Window> {
+    let process = get_window_process(hwnd, system);
+    match get_window_process(hwnd, system) {
+        Some(process) => Some(Window {
+            title: Some(get_window_title(hwnd)),
+            process
+        }),
+        None => None
     }
 }

@@ -1,3 +1,4 @@
+#![cfg(target_os = "macos")]
 use super::super::pc_common::{KEYSTROKES, MOUSE_CLICKS};
 use core_foundation::runloop::{kCFRunLoopCommonModes, CFRunLoop, CFRunLoopRun};
 use core_graphics::event::{

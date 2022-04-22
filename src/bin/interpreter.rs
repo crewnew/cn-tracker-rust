@@ -13,12 +13,12 @@ fn main() -> anyhow::Result<()> {
     // undefined behaviour, because only a raw pointer is passed to the executables
     let mut variable_map = FxHashMap::default();
     let mut executables = parse(string, (&mut variable_map as *mut _))?;
+    println!("Parsed");
     let now = Instant::now();
     for (i, mut executable) in executables.1.iter_mut().enumerate() {
        if let Err(err) = executable.execute() {
             println!("{}", err);
        }
     }
-
     Ok(())
 }

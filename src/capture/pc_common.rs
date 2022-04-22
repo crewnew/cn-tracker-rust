@@ -1,9 +1,19 @@
 #![allow(clippy::trivial_regex)]
 
-use crate::prelude::*;
+use crate::{
+    prelude::*,
+    scripting::VariableMapType
+};
 use regex::Regex;
 use serde_json::Value as J;
-use std::{collections::HashMap, sync::atomic::AtomicUsize};
+use std::{
+    collections::HashMap,
+    convert::TryFrom,
+    rc::Rc,
+    sync::{atomic::AtomicUsize, Mutex},
+    time::Duration,
+};
+use sysinfo::{Pid, ProcessExt, System, SystemExt};
 
 lazy_static::lazy_static! {
     static ref FORMATTED_TITLE_MATCH: Regex = Regex::new(r#"🛤([a-z]{2,5})🠚(.*)🠘"#).unwrap();
@@ -14,6 +24,66 @@ lazy_static::lazy_static! {
 
     pub static ref KEYSTROKES: AtomicUsize = AtomicUsize::new(0);
     pub static ref MOUSE_CLICKS: AtomicUsize = AtomicUsize::new(0);
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Event {
+    pub windows: Vec<Window>,
+    pub duration_since_user_input: Duration,
+    pub timestamp: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Window {
+    pub title: Option<String>,
+    pub process: Process,
+}
+
+impl From<Window> for VariableMapType {
+    fn from(window: Window) -> Self {
+        let mut map = Self::default();
+        if let Some(title) = window.title {
+            map.insert(Rc::new("TITLE".into()), title.into());
+        }
+        map.insert(Rc::new("NAME".into()), window.process.name.into());
+        map.insert(Rc::new("CMD".into()), window.process.cmd.iter().map(|a| a.as_str()).collect::<String>().into());
+        map.insert(Rc::new("EXE".into()), window.process.exe.into());
+        map.insert(Rc::new("CWD".into()), window.process.cwd.into());
+        map.insert(Rc::new("MEMORY".into()), (window.process.memory as usize).into());
+        map.insert(Rc::new("STATUS".into()), window.process.status.into());
+        map.insert(Rc::new("START_TIME".into()), window.process.start_time.to_string().into());
+        if let Some(cpu_usage) = window.process.cpu_usage {
+            map.insert(Rc::new("CPU_USAGE".into()), cpu_usage.into()); 
+        }
+        map
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Process {
+    pub name: String,
+    pub cmd: Vec<String>,
+    pub exe: String,
+    pub cwd: String,
+    pub memory: i64,
+    pub status: String,
+    pub start_time: DateTime<Utc>,
+    pub cpu_usage: Option<f32>,
+}
+
+impl From<&sysinfo::Process> for Process {
+    fn from(process: &sysinfo::Process) -> Self {
+        Process {
+            name: process.name().to_string(),
+            exe: process.exe().to_string_lossy().to_string(),
+            status: process.status().to_string(),
+            cmd: process.cmd().to_vec(),
+            cwd: process.cwd().to_string_lossy().to_string(),
+            memory: process.memory() as i64,
+            start_time: util::unix_epoch_millis_to_date((process.start_time() as i64) * 1000),
+            cpu_usage: Some(process.cpu_usage()),
+        }
+    }
 }
 
 fn match_cmdline_to_filepath(cwd: &str, cmdline: &[String]) -> anyhow::Result<String> {
@@ -73,7 +143,7 @@ pub fn match_software(
         }
     }
 
-    // match strictly formatted data in title:
+    // match strictly formatted window.process.in title:
     // 🛤sd🠚proj=/project/name🙰file=file/name🠘
     if let Some(cap) = FORMATTED_TITLE_MATCH.captures(window_title) {
         let category = cap.get(1).unwrap().as_str();

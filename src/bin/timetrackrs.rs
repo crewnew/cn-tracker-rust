@@ -68,9 +68,6 @@ async fn main() -> anyhow::Result<()> {
 
     let features: FuturesUnordered<JoinHandle<anyhow::Result<Never>>> = FuturesUnordered::new();
 
-    let peripherals_capture_loop =
-        tokio::task::spawn_blocking(timetrackrs::capture::macos::peripherals::capture_peripherals);
-
     for c in config.capturers {
         features.push(tokio::spawn(capture_loop(db.clone(), c)));
     }
@@ -89,8 +86,6 @@ async fn main() -> anyhow::Result<()> {
     while let Some(f) = features.next().await {
         f?.context("Some feature failed")?;
     }
-
-    peripherals_capture_loop.await?;
 
     println!("Everything exited");
     Ok(())

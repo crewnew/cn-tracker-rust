@@ -53,7 +53,7 @@ pub trait CapturerCreator {
 }
 
 pub trait Capturer: Send {
-    fn capture(&mut self) -> anyhow::Result<EventData>;
+    fn capture(&mut self) -> anyhow::Result<pc_common::Event>;
 }
 
 pub async fn capture_loop(db: DatyBasy, config: CaptureConfig) -> anyhow::Result<Never> {
@@ -71,21 +71,5 @@ pub async fn capture_loop(db: DatyBasy, config: CaptureConfig) -> anyhow::Result
         interval.tick().await;
 
         let data = c.capture()?;
-        let act = CreateNewDbEvent {
-            id: idgen.new_id().unwrap().encode(),
-            timestamp: Utc::now(),
-            duration_ms: config.interval.as_millis() as i64,
-            data,
-        };
-        let ins: NewDbEvent = act.try_into()?;
-        
-        #[cfg(feature = "graphql")]
-        {
-           crate::graphql::Event::from(ins.clone()).save_to_db().await?;
-        }
-
-        db.insert_events_if_needed(vec![ins])
-            .await
-            .context("Could not insert captured event")?;
     }
 }

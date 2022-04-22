@@ -159,16 +159,7 @@ fn parse_instruction(
             let function = move || {
                 use EventData::*;
                 let map = unsafe { &mut *variable_map };
-                match capturer.capture()? {
-                    windows_v1(data) => {}
-                    macos_v1(data) => {
-                        let vec: Vec<Variable> =
-                            data.windows.into_iter().map(|w| w.into()).collect();
-                        map.insert(Rc::new("WINDOWS".into()), vec.into());
-                    }
-                    x11_v2(data) => {}
-                    _ => (),
-                };
+                let event = capturer.capture()?;
                 Ok(())
             };
             Ok(Some(function.into()))
