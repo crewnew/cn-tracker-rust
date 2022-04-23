@@ -4,7 +4,10 @@
 
 #![allow(non_snake_case)]
 
-use super::types::*;
+use super::{
+    super::pc_common::{self, Event, Process},
+    types::*,
+};
 use crate::prelude::*;
 
 use serde_json::{json, Value as J};
@@ -103,13 +106,13 @@ pub fn init(options: X11CaptureArgs) -> anyhow::Result<X11Capturer<impl Connecti
 }
 
 impl<C: Connection + Send> Capturer for X11Capturer<C> {
-    fn capture(&mut self) -> anyhow::Result<EventData> {
+    fn capture(&mut self) -> anyhow::Result<Event> {
         let mut system = sysinfo::System::new();
         let NET_CLIENT_LIST = self.atom("_NET_CLIENT_LIST")?;
         let NET_CURRENT_DESKTOP = self.atom("_NET_CURRENT_DESKTOP")?;
         let NET_DESKTOP_NAMES = self.atom("_NET_DESKTOP_NAMES")?;
 
-        let blacklist = vec![
+        let blacklist = [
             self.atom("_NET_WM_ICON")?, // HUUGE
             self.atom("WM_ICON_NAME")?, // invalid unicode _NET_WM_ICON_NAME
             self.atom("WM_NAME")?,      // invalid unicode, use _NET_WM_NAME
@@ -120,22 +123,29 @@ impl<C: Connection + Send> Capturer for X11Capturer<C> {
             self.root_window,
             NET_CURRENT_DESKTOP,
         )?);
+
         let desktop_names = split_zero(&get_property_text(
             &self.conn,
             self.root_window,
             NET_DESKTOP_NAMES,
         )?);
+
         let focus = self.conn.get_input_focus()?.reply()?.focus;
+
         let mut windows = get_property32(&self.conn, self.root_window, NET_CLIENT_LIST)?;
+
         windows.sort_unstable();
+
         if self.options.only_focused_window {
             windows.retain(|i| i == &focus);
         }
 
-        let mut windowsdata = vec![];
+        let mut windows_data = vec![];
+
         if !windows.contains(&focus) {
             println!("Focussed thing is not in window list!!");
         }
+
         for window in windows {
             let props = self.conn.list_properties(window)?.reply()?.atoms;
             let mut propmap: BTreeMap<String, J> = BTreeMap::new();
@@ -197,23 +207,10 @@ impl<C: Connection + Send> Capturer for X11Capturer<C> {
                 propmap.insert(prop_name, pval);
             }
 
-            let process = if let Some(pid) = pid {
+            let process: Option<Process> = if let Some(pid) = pid {
                 system.refresh_process(sysinfo::Pid::from_u32(pid));
                 if let Some(procinfo) = system.process(sysinfo::Pid::from_u32(pid as u32)) {
-                    Some(ProcessData {
-                        pid: procinfo.pid().as_u32() as i32,
-                        name: procinfo.name().to_string(),
-                        cmd: procinfo.cmd().to_vec(),
-                        exe: procinfo.exe().to_string_lossy().to_string(), // tbh i don't care if your executables have filenames that are not unicode
-                        cwd: procinfo.cwd().to_string_lossy().to_string(),
-                        memory_kB: procinfo.memory() as i64,
-                        parent: procinfo.parent().map(|p| p.as_u32() as i32),
-                        status: procinfo.status().to_string().to_string(),
-                        start_time: util::unix_epoch_millis_to_date(
-                            (procinfo.start_time() as i64) * 1000,
-                        ),
-                        cpu_usage: Some(procinfo.cpu_usage()),
-                    })
+                    Some(procinfo.into())
                 } else {
                     println!(
                         "could not get process by pid {} for window {} ({})",
@@ -233,35 +230,29 @@ impl<C: Connection + Send> Capturer for X11Capturer<C> {
                 .translate_coordinates(window, self.root_window, 0, 0)?
                 .reply()?;
 
-            windowsdata.push(X11WindowData {
-                window_id: window,
-                geometry: X11WindowGeometry {
-                    x: coords.dst_x as i32,
-                    y: coords.dst_y as i32,
-                    width: geo.width as i32,
-                    height: geo.height as i32,
-                },
-                process,
-                window_properties: propmap,
-            });
+            if let Some(process) = process {
+                windows_data.push(pc_common::Window {
+                    title: propmap.get("_NET_WM_NAME").map(|title| title.to_string()),
+                    process,
+                });
+            }
         }
         let xscreensaver =
             x11rb::protocol::screensaver::query_info(&self.conn, self.root_window)?.reply()?;
         // see XScreenSaverQueryInfo at https://linux.die.net/man/3/xscreensaverunsetattributes
 
-        let data = X11EventData {
-            desktop_names,
-            os_info: self.os_info.clone(),
-            current_desktop_id: current_desktop as usize,
-            focused_window: focus,
-            ms_since_user_input: xscreensaver.ms_since_user_input,
-            ms_until_screensaver: xscreensaver.ms_until_server,
-            screensaver_window: xscreensaver.saver_window,
-            windows: windowsdata,
-            network: linux::network::get_network_info()
-                .map_err(|e| log::info!("could not get net info: {}", e))
-                .ok(),
+        let data = Event {
+            windows: windows_data,
+            duration_since_user_input: user_idle::UserIdle::get_time()
+                .map(|e| e.duration())
+                .map_err(|e| anyhow::Error::msg(e))
+                .context("Couldn't get duration since user input")
+                .unwrap_or_else(|e| {
+                    log::warn!("{}", e);
+                    Duration::ZERO
+                }),
+            timestamp: Utc::now().timestamp(),
         };
-        Ok(EventData::x11_v2(data))
+        Ok(data)
     }
 }
