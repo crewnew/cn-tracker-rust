@@ -1,12 +1,15 @@
 use super::{Conditional, Executable, Instruction, Iterative, Variable, VariableMapType};
 use crate::{
-    capture::{CapturerCreator, NativeDefaultArgs},
-    events::EventData,
+    capture::{
+        pc_common::{Event, Window},
+        CapturerCreator, NativeDefaultArgs,
+    },
+    graphql::SaveToDb,
     scripting::ConditionalFn,
 };
-use anyhow::Context;
+
 use regex::Regex;
-use std::{cell::UnsafeCell, cmp::Ordering, rc::Rc};
+use std::{convert::TryInto, time::Duration};
 
 /// SAFETY: The use of a raw pointer (`*mut VariableMapType`) is safe as long as
 /// you ensure that the value won't get dropped before the execution finishes,
@@ -22,15 +25,12 @@ use std::{cell::UnsafeCell, cmp::Ordering, rc::Rc};
 pub fn parse(
     string: impl AsRef<str>,
     variable_map: *mut VariableMapType,
-) -> anyhow::Result<(usize, Vec<Box<dyn Executable>>)> {
-    unsafe {
-        //(&mut *variable_map).insert("a".into(), "a".into());
-    }
+) -> anyhow::Result<(Duration, Vec<Box<dyn Executable>>)> {
     let mut executables = vec![];
 
-    let mut timeout: Option<usize> = None;
+    let mut timeout: Option<Duration> = None;
 
-    let mut string = string.as_ref().replace("\t", " ");
+    let string = string.as_ref().replace("\t", " ");
 
     let lines_split = string.split("\n");
 
@@ -70,7 +70,7 @@ pub fn parse(
                     anyhow::bail!("You haven't provided a valid time variant at line {}.\nYour options are: MILLISECONDS, SECONDS, MINUTES and HOURS.", line_pos);
                 }
 
-                let amount: usize = match line[1].parse() {
+                let amount: u64 = match line[1].parse() {
                     Ok(amount) => amount,
                     Err(_) => {
                         anyhow::bail!(
@@ -82,13 +82,15 @@ pub fn parse(
 
                 let time_variant = line[2];
 
-                match time_variant {
-                   "MILLISECONDS" => timeout = Some(amount),
-                   "SECONDS" => timeout = Some(amount * 1000),
-                   "MINUTES" => timeout = Some(amount * 1000 * 60),
-                   "HOURS" => timeout = Some(amount * 1000 * 60 * 60),
+                let time = match time_variant {
+                   "MILLISECONDS" => amount,
+                   "SECONDS" => amount * 1000,
+                   "MINUTES" => amount * 1000 * 60,
+                   "HOURS" => amount * 1000 * 60 * 60,
                    _ => anyhow::bail!("The time variant {} you provided at line {} doesn't exist.\nYour options are: MILLISECONDS, SECONDS, MINUTES and HOURS.", time_variant, line_pos)
                 };
+
+                timeout = Some(Duration::from_millis(time));
             }
             "IF" => {
                 executables.push(parse_conditional(&lines, &mut line_pos, variable_map)?.into());
@@ -138,7 +140,7 @@ fn parse_instruction(
                 Box::new(move || {
                     let map = unsafe { &*variable_map };
 
-                    let variable = match map.get(&word) {
+                    let variable = match map.get(word.as_str()) {
                         Some(variable) => variable,
                         None => anyhow::bail!("Couldn't find the Variable with Key {}", word),
                     };
@@ -153,13 +155,62 @@ fn parse_instruction(
             };
             Ok(Some(function.into()))
         }
+        "SAVE_TO_DB" => {
+            let function = move || {
+                let map = unsafe { &*variable_map };
+                let rule_id = match map.get("RULE_ID") {
+                    Some(Variable::RcStr(string)) => string,
+                    _ => anyhow::bail!("RULE_ID is not a String"),
+                };
+                let seconds_since_last_input = match map.get("SECONDS_SINCE_LAST_INPUT") {
+                    Some(Variable::U64(int)) => *int,
+                    _ => anyhow::bail!("SECONDS_SINCE_LAST_INPUT is not a U64"),
+                };
+                let windows: Vec<Window> = match map.get("WINDOWS") {
+                    Some(Variable::Vector(vec)) => {
+                        let mut windows = vec![];
+                        for variable in vec {
+                            let map = match variable {
+                                Variable::Map(map) => map,
+                                _ => anyhow::bail!("Variable is not a Map"),
+                            };
+                            windows.push(map.try_into()?);
+                        }
+                        windows
+                    }
+                    _ => anyhow::bail!("WINDOWS is not a Vector"),
+                };
+                let event = Event {
+                    windows,
+                    rule_id: Some(rule_id),
+                    keyboard: 0,
+                    mouse: 0,
+                    seconds_since_last_input,
+                };
+                event.save_to_db()?;
+                Ok(())
+            };
+            Ok(Some(function.into()))
+        }
         "GET_WINDOWS" => {
             let args = NativeDefaultArgs {};
             let mut capturer = args.create_capturer().expect("Couldn't create Capturer");
             let function = move || {
-                use EventData::*;
                 let map = unsafe { &mut *variable_map };
                 let event = capturer.capture()?;
+                map.insert(
+                    "WINDOWS",
+                    event
+                        .windows
+                        .into_iter()
+                        .map(|w| w.into())
+                        .collect::<Vec<VariableMapType>>()
+                        .into(),
+                );
+                map.insert(
+                    "SECONDS_SINCE_LAST_INPUT",
+                    event.seconds_since_last_input.into(),
+                );
                 Ok(())
             };
             Ok(Some(function.into()))
@@ -231,7 +282,7 @@ fn parse_conditional(
         If,
         ElseIf,
         Else,
-    };
+    }
     use Condition::*;
 
     let mut conditional = Conditional::default();
@@ -256,7 +307,7 @@ fn parse_conditional(
         while i < line.len() {
             let word = line[i];
 
-            /// Returns Option<_>, because Else statements do not have their own conditions.
+            // Returns Option<_>, because Else statements do not have their own conditions.
             let conditions = match condition {
                 If => match conditional.conditions.get_mut(conditions_pos) {
                     Some(conditions) => Some(conditions),
@@ -368,7 +419,7 @@ fn parse_conditional(
 
                         let map = unsafe { &*variable_map };
 
-                        if let Some(Variable::RcStr(string)) = map.get(&second) {
+                        if let Some(Variable::RcStr(string)) = map.get(second.as_str()) {
                             return regex.is_match(string);
                         }
 
@@ -406,24 +457,24 @@ fn parse_conditional(
                         let map = unsafe { &*variable_map };
 
                         if is_string_first && !is_string_second {
-                            if let Some(variable) = map.get(&second) {
+                            if let Some(variable) = map.get(second.as_str()) {
                                 return *variable == first;
                             }
                             false
                         } else if !is_string_first && is_string_second {
-                            if let Some(variable) = map.get(&first) {
+                            if let Some(variable) = map.get(first.as_str()) {
                                 return *variable == second;
                             }
                             false
                         } else if is_string_first && is_string_second {
                             first == second
                         } else {
-                            let first = match map.get(&first) {
+                            let first = match map.get(first.as_str()) {
                                 Some(first) => first,
                                 None => return false,
                             };
 
-                            let second = match map.get(&second) {
+                            let second = match map.get(second.as_str()) {
                                 Some(second) => second,
                                 None => return false,
                             };
@@ -465,7 +516,7 @@ fn parse_conditional(
 
                                 let map = unsafe { &*variable_map };
 
-                                if let Some(variable) = map.get(string) {
+                                if let Some(variable) = map.get(string.as_str()) {
                                     if is_string_first {
                                         if *variable == first {
                                             boolean = true;
@@ -474,7 +525,7 @@ fn parse_conditional(
                                         continue;
                                     }
 
-                                    if let Some(second_variable) = map.get(&first) {
+                                    if let Some(second_variable) = map.get(first.as_str()) {
                                         if *variable == *second_variable {
                                             boolean = true;
                                             break;
@@ -493,7 +544,7 @@ fn parse_conditional(
                         Box::new(move || {
                             let map = unsafe { &*variable_map };
 
-                            let variable = match map.get(&second) {
+                            let variable = match map.get(second.as_str()) {
                                 Some(variable) => variable,
                                 None => return false,
                             };
@@ -514,7 +565,7 @@ fn parse_conditional(
                                     continue;
                                 }
 
-                                if let Some(second_variable) = map.get(&first) {
+                                if let Some(second_variable) = map.get(first.as_str()) {
                                     if *variable == *second_variable {
                                         boolean = true;
                                         break;

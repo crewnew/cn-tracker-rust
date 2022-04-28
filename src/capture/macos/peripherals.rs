@@ -1,8 +1,8 @@
 #![cfg(target_os = "macos")]
 use super::super::pc_common::{KEYSTROKES, MOUSE_CLICKS};
-use core_foundation::runloop::{kCFRunLoopCommonModes, CFRunLoop, CFRunLoopRun};
+use core_foundation::runloop::{kCFRunLoopCommonModes, CFRunLoop};
 use core_graphics::event::{
-    CGEvent, CGEventMask, CGEventTap, CGEventTapLocation, CGEventTapOptions, CGEventTapPlacement,
+    CGEvent, CGEventTap, CGEventTapLocation, CGEventTapOptions, CGEventTapPlacement,
     CGEventTapProxy,
     CGEventType::{self, KeyDown, LeftMouseDown, RightMouseDown},
 };

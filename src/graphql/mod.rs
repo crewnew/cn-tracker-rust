@@ -1,19 +1,17 @@
-#![cfg(feature = "graphql")]
 use gql_client::Client;
 use lazy_static::lazy_static;
-
+use std::collections::HashMap;
 const ENDPOINT: &str = "http://localhost:8055/graphql";
 
 lazy_static! {
     static ref CLIENT: Client<'static> = Client::new_with_headers(
         ENDPOINT,
-        std::collections::HashMap::from([("Authorization", "Bearer admin_key")])
+        HashMap::from([("Authorization", "Bearer admin_token")])
     );
 }
 
-#[async_trait]
-trait SaveToDb {
-    async fn save_to_db(&self) -> anyhow::Result<()>;
+pub trait SaveToDb {
+    fn save_to_db(&self) -> anyhow::Result<()>;
 }
 
 #[derive(Serialize)]

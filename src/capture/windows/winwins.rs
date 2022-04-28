@@ -1,14 +1,17 @@
-use std::{collections::HashMap, ffi::OsString, slice};
-
 use super::{
+    super::{
+        pc_common::{Event, Process, Window},
+        Capturer, CapturerCreator,
+    },
     types::*,
-    super::pc_common::{Event, Window, Process}
 };
-use crate::prelude::*;
-use regex::Regex;
-use winapi::shared::windef::HWND;
+use crate::util;
+use anyhow::Context;
 use chrono::Utc;
-use sysinfo::{System, Pid, SystemExt, ProcessExt};
+use regex::Regex;
+use std::{collections::HashMap, ffi::OsString, slice, time::Duration};
+use sysinfo::{Pid, ProcessExt, System, SystemExt};
+use winapi::shared::windef::HWND;
 
 pub struct WindowsCapturer {
     os_info: util::OsInfo,
@@ -43,18 +46,20 @@ fn ol(process_id: i64) -> anyhow::Result<Option<WmiInfo>> {
 impl Capturer for WindowsCapturer {
     fn capture(&mut self) -> anyhow::Result<Event> {
         let focused_window = get_foreground_window().map(|f| get_window_id(f));
-        Ok(
-            Event {
+        Ok(Event {
             windows: get_all_windows(true),
-            duration_since_user_input: user_idle::UserIdle::get_time()
+            rule_id: None,
+            keyboard: 0,
+            mouse: 0,
+            seconds_since_last_input: user_idle::UserIdle::get_time()
                 .map(|e| e.duration())
                 .map_err(|e| anyhow::Error::msg(e))
                 .context("could not get duration since user input")
                 .unwrap_or_else(|e| {
                     log::warn!("{}", e);
                     return Duration::ZERO;
-                }),
-                timestamp: Utc::now().timestamp()
+                })
+                .as_secs(),
         })
     }
 }
@@ -180,7 +185,7 @@ pub fn get_window_process(hwnd: HWND, system: &mut System) -> Option<Process> {
         system.refresh_process(pid);
         match system.process(pid) {
             Some(process) => Some(process.into()),
-            None => None
+            None => None,
         }
     }
 }
@@ -355,8 +360,8 @@ fn map_hwnd(hwnd: HWND, system: &mut System) -> Option<Window> {
     match get_window_process(hwnd, system) {
         Some(process) => Some(Window {
             title: Some(get_window_title(hwnd)),
-            process
+            process,
         }),
-        None => None
+        None => None,
     }
 }

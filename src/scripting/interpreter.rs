@@ -1,17 +1,23 @@
-use lazy_static::lazy_static;
 use rustc_hash::FxHashMap;
-use std::{rc::Rc, str::FromStr, sync::RwLock};
+use std::rc::Rc;
 
-pub type VariableMapType = FxHashMap<Rc<String>, Variable>;
+pub type VariableMapType = FxHashMap<&'static str, Variable>;
 pub type ConditionalFn = Box<dyn FnMut() -> bool>;
 
 pub trait Executable {
     fn execute(&mut self) -> anyhow::Result<()>;
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Rule {
+    pub id: String,
+    pub body: String,
+}
+
 #[derive(Debug, PartialEq, Clone)]
 pub enum Variable {
     Int(usize),
+    U64(u64),
     Float(f32),
     RcStr(Rc<String>),
     Bool(bool),
@@ -34,6 +40,12 @@ impl From<String> for Variable {
 impl From<usize> for Variable {
     fn from(number: usize) -> Self {
         Self::Int(number)
+    }
+}
+
+impl From<u64> for Variable {
+    fn from(number: u64) -> Self {
+        Self::U64(number)
     }
 }
 
@@ -110,7 +122,6 @@ impl Executable for Instruction {
 }
 
 pub struct Iterative {
-    index: usize,
     executables: Vec<Box<dyn Executable>>,
     key: String,
     variable_map: *mut VariableMapType,
@@ -120,7 +131,6 @@ impl Iterative {
     pub fn new(key: String, variable_map: *mut VariableMapType) -> Self {
         Self {
             key,
-            index: 0,
             variable_map,
             executables: vec![],
         }
@@ -141,12 +151,11 @@ impl From<Iterative> for Box<dyn Executable> {
     }
 }
 
-
 impl Executable for Iterative {
     fn execute(&mut self) -> anyhow::Result<()> {
         let variable_map = unsafe { &mut *self.variable_map };
-        
-        let vec = match unsafe { &mut *self.variable_map }.get(&self.key) {
+
+        let vec = match unsafe { &mut *self.variable_map }.get(self.key.as_str()) {
             Some(vec) => match vec {
                 Variable::Vector(vec) => vec,
                 _ => anyhow::bail!("The Value attained with Key {} is not a Vector", self.key),

@@ -1,33 +1,28 @@
-use super::{
-    types::*,
-    super::pc_common::{Event, Window, Process}
+use super::super::{
+    pc_common::{Event, Window},
+    Capturer,
 };
-use crate::prelude::*;
-
+use crate::util;
 use accessibility_sys::{
     kAXErrorSuccess, kAXFocusedWindowAttribute, kAXTitleAttribute, kAXTrustedCheckOptionPrompt,
-    kAXWindowsAttribute, AXError, AXIsProcessTrustedWithOptions, AXUIElementCopyAttributeValue,
-    AXUIElementCreateApplication, AXUIElementRef,
+    AXIsProcessTrustedWithOptions, AXUIElementCopyAttributeValue, AXUIElementCreateApplication,
 };
+use anyhow::Context;
 use core_foundation::{
-    array::{CFArray, CFArrayRef},
+    array::CFArray,
     base::{CFRelease, FromVoid, ItemRef, TCFType, ToVoid},
-    boolean::CFBoolean,
     dictionary::{CFDictionary, CFMutableDictionary},
     number::CFNumber,
     string::{kCFStringEncodingUTF8, CFString, CFStringGetCStringPtr, CFStringRef},
 };
 use core_graphics::window::{
-    kCGNullWindowID, kCGWindowListOptionAll, kCGWindowListOptionOnScreenOnly, CGWindowID,
-    CGWindowListCopyWindowInfo,
+    kCGNullWindowID, kCGWindowListOptionOnScreenOnly, CGWindowListCopyWindowInfo,
 };
-use objc::{class, msg_send, runtime::Object, sel, sel_impl};
-use rustc_hash::FxHashMap;
-use std::{
-    ffi::{c_void, CStr},
-    sync::Arc,
-};
-use sysinfo::{Pid, PidExt, ProcessExt, System, SystemExt};
+use objc::{msg_send, runtime::Object, sel, sel_impl};
+use std::time::Duration;
+
+use std::ffi::{c_void, CStr};
+use sysinfo::{Pid, System, SystemExt};
 
 pub struct MacOSCapturer {
     os_info: util::OsInfo,
@@ -45,7 +40,7 @@ impl MacOSCapturer {
 
     /// Gets all currently running apps that may have UIs and are visible in the dock.
     /// Reference: https://developer.apple.com/documentation/appkit/nsapplicationactivationpolicy?language=objc
-    pub fn get_windows(&mut self) -> Vec<Window>{
+    pub fn get_windows(&mut self) -> Vec<Window> {
         let MacOSCapturer {
             accessibility_permission,
             ..
@@ -139,15 +134,18 @@ impl Capturer for MacOSCapturer {
 
         Ok(Event {
             windows,
-            duration_since_user_input: user_idle::UserIdle::get_time()
+            rule_id: None,
+            keyboard: 0,
+            mouse: 0,
+            seconds_since_last_input: user_idle::UserIdle::get_time()
                 .map(|e| e.duration())
                 .map_err(|e| anyhow::Error::msg(e))
                 .context("Couldn't get duration since user input")
                 .unwrap_or_else(|e| {
                     log::warn!("{}", e);
                     Duration::ZERO
-                }),
-                timestamp: Utc::now().timestamp()
+                })
+                .as_secs(),
         })
     }
 }

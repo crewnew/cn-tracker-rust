@@ -5,10 +5,12 @@
 #![allow(non_snake_case)]
 
 use super::{
-    super::pc_common::{self, Event, Process},
+    super::{
+        pc_common::{self, Event, Process},
+        Capturer, CapturerCreator,
+    },
     types::*,
 };
-use crate::prelude::*;
 
 use serde_json::{json, Value as J};
 use std::collections::{BTreeMap, HashMap};
@@ -243,15 +245,18 @@ impl<C: Connection + Send> Capturer for X11Capturer<C> {
 
         let data = Event {
             windows: windows_data,
-            duration_since_user_input: user_idle::UserIdle::get_time()
+            rule_id: None,
+            keyboard: 0,
+            mouse: 0,
+            seconds_since_last_input: user_idle::UserIdle::get_time()
                 .map(|e| e.duration())
                 .map_err(|e| anyhow::Error::msg(e))
                 .context("Couldn't get duration since user input")
                 .unwrap_or_else(|e| {
                     log::warn!("{}", e);
                     Duration::ZERO
-                }),
-            timestamp: Utc::now().timestamp(),
+                })
+                .as_secs(),
         };
         Ok(data)
     }

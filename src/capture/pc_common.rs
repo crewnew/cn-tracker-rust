@@ -1,19 +1,13 @@
 #![allow(clippy::trivial_regex)]
 
 use crate::{
-    prelude::*,
-    scripting::VariableMapType
+    scripting::{Variable, VariableMapType},
+    util,
 };
 use regex::Regex;
-use serde_json::Value as J;
-use std::{
-    collections::HashMap,
-    convert::TryFrom,
-    rc::Rc,
-    sync::{atomic::AtomicUsize, Mutex},
-    time::Duration,
-};
-use sysinfo::{Pid, ProcessExt, System, SystemExt};
+
+use std::{convert::TryFrom, sync::atomic::AtomicUsize};
+use sysinfo::{ProcessExt};
 
 lazy_static::lazy_static! {
     static ref FORMATTED_TITLE_MATCH: Regex = Regex::new(r#"🛤([a-z]{2,5})🠚(.*)🠘"#).unwrap();
@@ -27,10 +21,12 @@ lazy_static::lazy_static! {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Event {
+pub struct Event<'a> {
     pub windows: Vec<Window>,
-    pub duration_since_user_input: Duration,
-    pub timestamp: i64,
+    pub rule_id: Option<&'a str>,
+    pub keyboard: usize,
+    pub mouse: usize,
+    pub seconds_since_last_input: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -43,31 +39,88 @@ impl From<Window> for VariableMapType {
     fn from(window: Window) -> Self {
         let mut map = Self::default();
         if let Some(title) = window.title {
-            map.insert(Rc::new("TITLE".into()), title.into());
+            map.insert("TITLE", title.into());
         }
-        map.insert(Rc::new("NAME".into()), window.process.name.into());
-        map.insert(Rc::new("CMD".into()), window.process.cmd.iter().map(|a| a.as_str()).collect::<String>().into());
-        map.insert(Rc::new("EXE".into()), window.process.exe.into());
-        map.insert(Rc::new("CWD".into()), window.process.cwd.into());
-        map.insert(Rc::new("MEMORY".into()), (window.process.memory as usize).into());
-        map.insert(Rc::new("STATUS".into()), window.process.status.into());
-        map.insert(Rc::new("START_TIME".into()), window.process.start_time.to_string().into());
+        map.insert("NAME", window.process.name.into());
+        map.insert("CMD", window.process.cmd.into());
+        map.insert("EXE", window.process.exe.into());
+        map.insert("CWD", window.process.cwd.into());
+        map.insert("MEMORY", (window.process.memory as usize).into());
+        map.insert("STATUS", window.process.status.into());
+        map.insert("START_TIME", window.process.start_time.to_string().into());
         if let Some(cpu_usage) = window.process.cpu_usage {
-            map.insert(Rc::new("CPU_USAGE".into()), cpu_usage.into()); 
+            map.insert("CPU_USAGE", cpu_usage.into());
         }
         map
+    }
+}
+
+impl TryFrom<&VariableMapType> for Window {
+    type Error = anyhow::Error;
+    fn try_from(variable_map: &VariableMapType) -> Result<Self, Self::Error> {
+        let title: Option<String> = match variable_map.get("TITLE") {
+            Some(Variable::RcStr(string)) => Some((**string).clone()),
+            None => None,
+            _ => anyhow::bail!("TITLE is not a String"),
+        };
+        let name = match variable_map.get("NAME") {
+            Some(Variable::RcStr(string)) => (**string).clone(),
+            _ => anyhow::bail!("NAME is not a String"),
+        };
+        let cmd = match variable_map.get("CMD") {
+            Some(Variable::RcStr(string)) => (**string).clone(),
+            _ => anyhow::bail!("CMD is not a String"),
+        };
+        let exe = match variable_map.get("EXE") {
+            Some(Variable::RcStr(string)) => (**string).clone(),
+            _ => anyhow::bail!("EXE is not a String"),
+        };
+        let cwd = match variable_map.get("CWD") {
+            Some(Variable::RcStr(string)) => (**string).clone(),
+            _ => anyhow::bail!("CWD is not a String"),
+        };
+        let memory = match variable_map.get("MEMORY") {
+            Some(Variable::Int(int)) => *int as i64,
+            _ => anyhow::bail!("MEMORY is not an Int"),
+        };
+        let status = match variable_map.get("STATUS") {
+            Some(Variable::RcStr(string)) => (**string).clone(),
+            _ => anyhow::bail!("STATUS is not a String"),
+        };
+        let start_time = match variable_map.get("START_TIME") {
+            Some(Variable::RcStr(string)) => (**string).clone(),
+            _ => anyhow::bail!("START_TIME is not a String"),
+        };
+        let cpu_usage = match variable_map.get("CPU_USAGE") {
+            Some(Variable::Float(float)) => Some(*float),
+            None => None,
+            _ => anyhow::bail!("CPU_USAGE is not a Float"),
+        };
+        Ok(Window {
+            title,
+            process: Process {
+                name,
+                cmd,
+                exe,
+                cwd,
+                memory,
+                status,
+                start_time,
+                cpu_usage,
+            },
+        })
     }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Process {
     pub name: String,
-    pub cmd: Vec<String>,
+    pub cmd: String,
     pub exe: String,
     pub cwd: String,
     pub memory: i64,
     pub status: String,
-    pub start_time: DateTime<Utc>,
+    pub start_time: String,
     pub cpu_usage: Option<f32>,
 }
 
@@ -77,109 +130,12 @@ impl From<&sysinfo::Process> for Process {
             name: process.name().to_string(),
             exe: process.exe().to_string_lossy().to_string(),
             status: process.status().to_string(),
-            cmd: process.cmd().to_vec(),
+            cmd: process.cmd().to_vec().concat(),
             cwd: process.cwd().to_string_lossy().to_string(),
             memory: process.memory() as i64,
-            start_time: util::unix_epoch_millis_to_date((process.start_time() as i64) * 1000),
+            start_time: util::unix_epoch_millis_to_date((process.start_time() as i64) * 1000)
+                .to_string(),
             cpu_usage: Some(process.cpu_usage()),
         }
     }
-}
-
-fn match_cmdline_to_filepath(cwd: &str, cmdline: &[String]) -> anyhow::Result<String> {
-    if cmdline.len() == 2 {
-        // TODO: windows??
-        // on windows all paths should be converted to sane unix paths (e.g. C:\foo -> /c:/foo)
-        if cmdline[1].starts_with('/') {
-            return Ok(cmdline[1].clone());
-        }
-        if !cmdline[1].starts_with('-') {
-            // path joining shouldn't be os-specific
-            return Ok(std::path::PathBuf::from(cwd)
-                .join(&cmdline[1])
-                .to_string_lossy()
-                .to_string());
-        }
-        anyhow::bail!("only cmd arg '{}' starts with -", cmdline[1]);
-    } else {
-        anyhow::bail!("found {} cmd args not 1", cmdline.len())
-    }
-}
-
-/**
- * todo: smarter logic based on open program category?
- */
-pub fn is_idle(duration: Duration) -> bool {
-    return duration > Duration::from_secs(120);
-}
-
-/**
-try to get structured info about a program from title etc
-*/
-pub fn match_software(
-    window_title: &str,
-    window_class: &Option<(String, String)>, // "class" of the window which usually identifies the software
-    executable_path: Option<&str>,
-    cwd: Option<&str>,
-    cmdline: Option<&[String]>,
-) -> Vec<TagValue> {
-    use crate::extract::tags::*;
-
-    let mut tags = Vec::new();
-
-    tags.add("software-window-title", window_title);
-
-    if let Some(exe) = executable_path {
-        tags.add("software-executable-path", exe);
-    }
-    if let Some(cls) = window_class {
-        tags.add("software-window-class", format!("{}.{}", cls.0, cls.1));
-    }
-    if let Some(cwd) = cwd {
-        if let Some(cmdline) = cmdline {
-            if let Ok(path) = match_cmdline_to_filepath(cwd, cmdline) {
-                tags.add("software-opened-file", path);
-            }
-        }
-    }
-
-    // match strictly formatted window.process.in title:
-    // 🛤sd🠚proj=/project/name🙰file=file/name🠘
-    if let Some(cap) = FORMATTED_TITLE_MATCH.captures(window_title) {
-        let category = cap.get(1).unwrap().as_str();
-        let kv = {
-            let mut kv = HashMap::new();
-            let values = cap.get(2).unwrap().as_str();
-            for kvs in FORMATTED_TITLE_SPLIT.split(values) {
-                let c = FORMATTED_TITLE_KV.captures(kvs).unwrap();
-                let k = c.get(1).unwrap().as_str().to_string();
-                let v = c.get(2).unwrap().as_str().to_string();
-                kv.insert(k, v);
-            }
-            kv
-        };
-        for (k, v) in &kv {
-            tags.add(format!("title-match-{}-{}", category, k), v);
-        }
-    }
-    if let Some(m) = JSON_TITLE.find(window_title) {
-        if let Ok(J::Object(mut o)) = serde_json::from_str(m.as_str()) {
-            let mut category = o.remove("t").or_else(|| o.remove("type"));
-            if category.is_none() && o.contains_key("histdb") {
-                // hack for legacy entries in phiresky db
-                category = Some(J::String("shell".to_string()));
-            }
-            if let Some(J::String(category)) = category {
-                for (k, v) in &o {
-                    let txtv = match v {
-                        // no "" around string
-                        J::String(s) => s.to_string(),
-                        any => format!("{}", any),
-                    };
-                    tags.add(format!("title-match-{}-{}", category, k), txtv);
-                }
-            }
-        }
-    }
-    tags
 }

@@ -3,7 +3,7 @@ EVERY 5 SECONDS
 GET_WINDOWS
 
 ITERATE WINDOWS
-  PRINT "--- WINDOW ---"
+  PRINT TITLE
   PRINT NAME
 END
 
@@ -11,7 +11,7 @@ PRINT "normal print"
 
 IF "a" EQ "a"
   IF "b" EQ "b"
-    PRINT "IF inside IF"
+    SAVE_TO_DB
   END
 END
 
@@ -30,4 +30,8 @@ END
 
 IF a IN ["a", "b"]
   PRINT 'hello'
+END
+
+IF "a" MATCH "a"
+  PRINT "REGEX"
 END

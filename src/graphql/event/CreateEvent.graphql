@@ -1,5 +1,5 @@
-mutation CreateEvent($data: create_event_input!) {
-  event:create_event_item(data: $data) {
+mutation event($data: create_events_input!) {
+  create_events_item(data: $data) {
     id
   }
 }

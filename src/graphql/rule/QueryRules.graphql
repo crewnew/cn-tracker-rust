@@ -1,0 +1,6 @@
+query rules {
+  rules{
+    id
+    body
+  }
+}
