@@ -1,5 +1,6 @@
-use super::NetworkInfo;
+use super::types::{NetworkInfo, WifiInterface};
 use nl80211::{parse_hex, parse_i8, parse_string, parse_u32, Socket};
+use anyhow::Context;
 // currently wifi only
 // todo?:  get mac address of gateway (in ethernet this should be same as bssid of wifi)
 pub fn get_network_info() -> anyhow::Result<NetworkInfo> {
