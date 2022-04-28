@@ -2091,6 +2091,7 @@ dependencies = [
  "env_logger",
  "erased-serde",
  "gql_client",
+ "hex",
  "lazy_static",
  "libc",
  "log",

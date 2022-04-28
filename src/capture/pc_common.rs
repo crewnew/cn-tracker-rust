@@ -7,7 +7,7 @@ use crate::{
 use regex::Regex;
 
 use std::{convert::TryFrom, sync::atomic::AtomicUsize};
-use sysinfo::{ProcessExt};
+use sysinfo::ProcessExt;
 
 lazy_static::lazy_static! {
     static ref FORMATTED_TITLE_MATCH: Regex = Regex::new(r#"🛤([a-z]{2,5})🠚(.*)🠘"#).unwrap();
