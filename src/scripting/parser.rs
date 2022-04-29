@@ -194,7 +194,6 @@ fn parse_instruction(
                     mouse: 0,
                     seconds_since_last_input,
                 };
-                dbg!(&event);
                 event.save_to_db()?;
                 Ok(())
             };
@@ -205,7 +204,6 @@ fn parse_instruction(
             let function = move || {
                 let map = unsafe { &mut *variable_map };
                 let event = capturer.capture()?;
-                println!("A");
                 map.insert(
                     "WINDOWS",
                     event
@@ -215,7 +213,6 @@ fn parse_instruction(
                         .collect::<Vec<VariableMapType>>()
                         .into(),
                 );
-                println!("B");
                 map.insert(
                     "SECONDS_SINCE_LAST_INPUT",
                     event.seconds_since_last_input.into(),
