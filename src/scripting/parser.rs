@@ -1,8 +1,8 @@
-use super::{Conditional, Executable, Instruction, Iterative, Variable, VariableMapType};
+use super::{Conditional, Executable, Instruction, Iterative, Variable, VariableMapType, Rule};
 use crate::{
     capture::{
         pc_common::{Event, Window},
-        CapturerCreator, NativeDefaultArgs,
+        create_capturer, NativeDefaultArgs,
     },
     graphql::SaveToDb,
     scripting::ConditionalFn,
@@ -159,8 +159,12 @@ fn parse_instruction(
             let function = move || {
                 let map = unsafe { &*variable_map };
                 let rule_id = match map.get("RULE_ID") {
-                    Some(Variable::RcStr(string)) => string,
+                    Some(Variable::RcStr(string)) => (**string).clone(),
                     _ => anyhow::bail!("RULE_ID is not a String"),
+                };
+                let rule_body = match map.get("RULE_BODY") {
+                    Some(Variable::RcStr(string)) => (**string).clone(),
+                    _ => anyhow::bail!("RULE_BODY is not a String")
                 };
                 let seconds_since_last_input = match map.get("SECONDS_SINCE_LAST_INPUT") {
                     Some(Variable::U64(int)) => *int,
@@ -182,22 +186,26 @@ fn parse_instruction(
                 };
                 let event = Event {
                     windows,
-                    rule_id: Some(rule_id),
+                    rule: Some(Rule {
+                        id: rule_id,
+                        body: rule_body
+                    }),
                     keyboard: 0,
                     mouse: 0,
                     seconds_since_last_input,
                 };
+                dbg!(&event);
                 event.save_to_db()?;
                 Ok(())
             };
             Ok(Some(function.into()))
         }
         "GET_WINDOWS" => {
-            let args = NativeDefaultArgs {};
-            let mut capturer = args.create_capturer().expect("Couldn't create Capturer");
+            let mut capturer = create_capturer();
             let function = move || {
                 let map = unsafe { &mut *variable_map };
                 let event = capturer.capture()?;
+                println!("A");
                 map.insert(
                     "WINDOWS",
                     event
@@ -207,6 +215,7 @@ fn parse_instruction(
                         .collect::<Vec<VariableMapType>>()
                         .into(),
                 );
+                println!("B");
                 map.insert(
                     "SECONDS_SINCE_LAST_INPUT",
                     event.seconds_since_last_input.into(),

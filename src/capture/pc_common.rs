@@ -1,7 +1,7 @@
 #![allow(clippy::trivial_regex)]
 
 use crate::{
-    scripting::{Variable, VariableMapType},
+    scripting::{Rule, Variable, VariableMapType},
     util,
 };
 use regex::Regex;
@@ -21,9 +21,10 @@ lazy_static::lazy_static! {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Event<'a> {
+pub struct Event {
     pub windows: Vec<Window>,
-    pub rule_id: Option<&'a str>,
+    #[serde(rename = "rule_id")]
+    pub rule: Option<Rule>,
     pub keyboard: usize,
     pub mouse: usize,
     pub seconds_since_last_input: u64,
@@ -47,7 +48,7 @@ impl From<Window> for VariableMapType {
         map.insert("CWD", window.process.cwd.into());
         map.insert("MEMORY", (window.process.memory as usize).into());
         map.insert("STATUS", window.process.status.into());
-        map.insert("START_TIME", window.process.start_time.to_string().into());
+        map.insert("START_TIME", window.process.start_time.into());
         if let Some(cpu_usage) = window.process.cpu_usage {
             map.insert("CPU_USAGE", cpu_usage.into());
         }
@@ -88,8 +89,8 @@ impl TryFrom<&VariableMapType> for Window {
             _ => anyhow::bail!("STATUS is not a String"),
         };
         let start_time = match variable_map.get("START_TIME") {
-            Some(Variable::RcStr(string)) => (**string).clone(),
-            _ => anyhow::bail!("START_TIME is not a String"),
+            Some(Variable::U64(int)) => *int,
+            _ => anyhow::bail!("START_TIME is not a U64"),
         };
         let cpu_usage = match variable_map.get("CPU_USAGE") {
             Some(Variable::Float(float)) => Some(*float),
@@ -120,7 +121,7 @@ pub struct Process {
     pub cwd: String,
     pub memory: i64,
     pub status: String,
-    pub start_time: String,
+    pub start_time: u64,
     pub cpu_usage: Option<f32>,
 }
 
@@ -133,8 +134,7 @@ impl From<&sysinfo::Process> for Process {
             cmd: process.cmd().to_vec().concat(),
             cwd: process.cwd().to_string_lossy().to_string(),
             memory: process.memory() as i64,
-            start_time: util::unix_epoch_millis_to_date((process.start_time() as i64) * 1000)
-                .to_string(),
+            start_time: process.start_time(),
             cpu_usage: Some(process.cpu_usage()),
         }
     }

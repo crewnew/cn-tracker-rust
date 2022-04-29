@@ -18,6 +18,21 @@ fn default_capture_args() -> CaptureArgs {
     CaptureArgs::NativeDefault(NativeDefaultArgs {})
 }
 
+#[cfg(target_os = "macos")]
+pub fn create_capturer() -> Box<dyn Capturer> {
+   Box::new(macos::appkit::MacOSCapturer::init())
+}
+
+#[cfg(target_os = "windows")]
+pub fn create_capturer() -> Box<dyn Capturer> {
+    Box::new(windows::winwins::WindowsCapturer::init())
+}
+
+#[cfg(target_os = "linux")]
+pub fn create_capturer() -> Box<dyn Capturer> {
+    Box::new(linux::x11::init().unwrap())
+}
+
 impl CapturerCreator for NativeDefaultArgs {
     fn create_capturer(&self) -> anyhow::Result<Box<dyn Capturer>> {
         default_capture_args().create_capturer()

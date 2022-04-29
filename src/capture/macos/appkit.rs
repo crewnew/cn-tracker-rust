@@ -134,7 +134,7 @@ impl Capturer for MacOSCapturer {
 
         Ok(Event {
             windows,
-            rule_id: None,
+            rule: None,
             keyboard: 0,
             mouse: 0,
             seconds_since_last_input: user_idle::UserIdle::get_time()

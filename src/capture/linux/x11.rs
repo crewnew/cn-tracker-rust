@@ -74,7 +74,6 @@ fn single<T: Copy>(v: &[T]) -> T {
 }
 
 pub struct X11Capturer<C: Connection> {
-    options: X11CaptureArgs,
     conn: C,
     root_window: u32,
     atom_name_map: HashMap<u32, anyhow::Result<String>>,
@@ -98,12 +97,12 @@ impl<C: Connection> X11Capturer<C> {
         }
     }
 }
-pub fn init(options: X11CaptureArgs) -> anyhow::Result<X11Capturer<impl Connection>> {
+
+pub fn init() -> anyhow::Result<X11Capturer<impl Connection>> {
     let (conn, screen_num) = x11rb::connect(None)?;
     let screen = &conn.setup().roots[screen_num];
     let root_window = screen.root;
     Ok(X11Capturer {
-        options,
         conn,
         root_window,
         os_info: util::get_os_info(),
@@ -141,10 +140,6 @@ impl<C: Connection + Send> Capturer for X11Capturer<C> {
         let mut windows = get_property32(&self.conn, self.root_window, NET_CLIENT_LIST)?;
 
         windows.sort_unstable();
-
-        if self.options.only_focused_window {
-            windows.retain(|i| i == &focus);
-        }
 
         let mut windows_data = vec![];
 
@@ -249,7 +244,7 @@ impl<C: Connection + Send> Capturer for X11Capturer<C> {
 
         let data = Event {
             windows: windows_data,
-            rule_id: None,
+            rule: None,
             keyboard: 0,
             mouse: 0,
             seconds_since_last_input: user_idle::UserIdle::get_time()

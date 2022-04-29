@@ -17,10 +17,10 @@ pub struct WindowsCapturer {
     os_info: util::OsInfo,
 }
 impl WindowsCapturer {
-    pub fn init() -> anyhow::Result<WindowsCapturer> {
-        Ok(WindowsCapturer {
+    pub fn init() -> WindowsCapturer {
+        WindowsCapturer {
             os_info: util::get_os_info(),
-        })
+        }
     }
 }
 
@@ -48,7 +48,7 @@ impl Capturer for WindowsCapturer {
         let focused_window = get_foreground_window().map(|f| get_window_id(f));
         Ok(Event {
             windows: get_all_windows(true),
-            rule_id: None,
+            rule: None,
             keyboard: 0,
             mouse: 0,
             seconds_since_last_input: user_idle::UserIdle::get_time()
