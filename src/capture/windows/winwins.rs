@@ -13,14 +13,11 @@ use std::{collections::HashMap, ffi::OsString, slice, time::Duration};
 use sysinfo::{Pid, ProcessExt, System, SystemExt};
 use winapi::shared::windef::HWND;
 
-pub struct WindowsCapturer {
-    os_info: util::OsInfo,
-}
+pub struct WindowsCapturer {}
+
 impl WindowsCapturer {
     pub fn init() -> WindowsCapturer {
-        WindowsCapturer {
-            os_info: util::get_os_info(),
-        }
+        WindowsCapturer {}
     }
 }
 
@@ -32,6 +29,7 @@ struct WmiInfo {
     command_line: String,
     creation_date: wmi::datetime::WMIDateTime,
 }
+
 // probably slow, but how else to do it?
 fn ol(process_id: i64) -> anyhow::Result<Option<WmiInfo>> {
     let wmi_con = wmi::WMIConnection::new(wmi::COMLibrary::new()?.into())?;

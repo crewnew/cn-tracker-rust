@@ -77,7 +77,6 @@ pub struct X11Capturer<C: Connection> {
     conn: C,
     root_window: u32,
     atom_name_map: HashMap<u32, anyhow::Result<String>>,
-    os_info: util::OsInfo,
 }
 impl<C: Connection> X11Capturer<C> {
     fn atom(&self, e: &str) -> anyhow::Result<u32> {
@@ -105,7 +104,6 @@ pub fn init() -> anyhow::Result<X11Capturer<impl Connection>> {
     Ok(X11Capturer {
         conn,
         root_window,
-        os_info: util::get_os_info(),
         atom_name_map: HashMap::new(),
     })
 }

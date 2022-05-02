@@ -20,6 +20,7 @@ pub enum Variable {
     U64(u64),
     Float(f32),
     RcStr(Rc<String>),
+    StaticStr(&'static str),
     Bool(bool),
     Vector(Vec<Variable>),
     Map(VariableMapType),
@@ -77,14 +78,29 @@ impl PartialEq<String> for Variable {
     fn eq(&self, other: &String) -> bool {
         use Variable::*;
         match self {
+            RcStr(string) => **string == *other,
             Int(i) => {
                 let num: usize = match other.parse() {
                     Ok(num) => num,
                     Err(_) => return false,
                 };
                 *i == num
-            }
-            RcStr(string) => **string == *other,
+            },
+            U64(i) => {
+                let num: u64 = match other.parse() {
+                    Ok(num) => num,
+                    Err(_) => return false,
+                };
+                *i == num
+            },
+            Float(i) => {
+                let num: f32 = match other.parse() {
+                    Ok(num) => num,
+                    Err(_) => return false,
+                };
+                *i == num
+            },
+            StaticStr(string) => *string == *other,
             Bool(boolean) => {
                 let boolean = *boolean;
                 if boolean && other == "true" {

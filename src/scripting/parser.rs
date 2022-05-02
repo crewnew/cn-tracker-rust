@@ -21,7 +21,7 @@ use std::{convert::TryInto, time::Duration};
 /// current execution model does not include concurrency and all executables are executed
 /// one after another.
 
-/// Returns the seconds to wait for execution and a vector of executable pointers.
+/// Returns the duration to wait for execution and a vector of executable pointers.
 pub fn parse(
     string: impl AsRef<str>,
     variable_map: *mut VariableMapType,
@@ -144,10 +144,12 @@ fn parse_instruction(
                         Some(variable) => variable,
                         None => anyhow::bail!("Couldn't find the Variable with Key {}", word),
                     };
-
-                    if let Variable::RcStr(string) = variable {
-                        println!("{}", string);
-                    }
+                    
+                    match variable {
+                        Variable::RcStr(string) => println!("{}", string),
+                        Variable::StaticStr(string) => println!("{}", string),
+                        _ => ()
+                    };
 
                     Ok(())
                 })

@@ -25,7 +25,6 @@ use std::ffi::{c_void, CStr};
 use sysinfo::{Pid, System, SystemExt};
 
 pub struct MacOSCapturer {
-    os_info: util::OsInfo,
     accessibility_permission: bool,
 }
 
@@ -33,7 +32,6 @@ impl MacOSCapturer {
     pub fn init() -> MacOSCapturer {
         let accessibility_permission = unsafe { check_accessibility_permission() };
         MacOSCapturer {
-            os_info: util::get_os_info(),
             accessibility_permission,
         }
     }
