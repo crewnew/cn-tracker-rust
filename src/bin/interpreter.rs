@@ -1,9 +1,10 @@
+use lazy_static::lazy_static;
 use rustc_hash::FxHashMap;
 use std::thread;
-use lazy_static::lazy_static;
 use timetrackrs::{
-    graphql::get_rules, scripting::*,
-    util::{get_os_info, OsInfo}
+    graphql::get_rules,
+    scripting::*,
+    util::{get_os_info, OsInfo},
 };
 
 lazy_static! {
@@ -26,7 +27,7 @@ fn main() {
             variable_map.insert("OS_TYPE", Variable::StaticStr(&OS_INFO.os_type));
             variable_map.insert("VERSION", Variable::StaticStr(&OS_INFO.version));
             if let Some(batteries) = OS_INFO.batteries {
-                variable_map.insert("BATTERIES", (batteries as usize).into()); 
+                variable_map.insert("BATTERIES", (batteries as usize).into());
             }
             variable_map.insert("HOSTNAME", Variable::StaticStr(&OS_INFO.hostname));
             if let Some(username) = &OS_INFO.username {

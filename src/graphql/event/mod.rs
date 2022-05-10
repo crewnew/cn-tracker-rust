@@ -7,7 +7,7 @@ impl SaveToDb for Event {
     fn save_to_db(&self) -> anyhow::Result<()> {
         #[derive(Deserialize)]
         struct Data {
-            create_events_item: Id
+            create_events_item: Id,
         }
         let variables = Variables { data: self };
         CLIENT

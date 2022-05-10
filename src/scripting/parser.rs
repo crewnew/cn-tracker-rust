@@ -1,8 +1,9 @@
-use super::{Conditional, Executable, Instruction, Iterative, Variable, VariableMapType, Rule};
+use super::{Conditional, Executable, Instruction, Iterative, Rule, Variable, VariableMapType};
 use crate::{
     capture::{
+        create_capturer,
         pc_common::{Event, Window},
-        create_capturer, NativeDefaultArgs,
+        NativeDefaultArgs,
     },
     graphql::SaveToDb,
     scripting::ConditionalFn,
@@ -144,11 +145,11 @@ fn parse_instruction(
                         Some(variable) => variable,
                         None => anyhow::bail!("Couldn't find the Variable with Key {}", word),
                     };
-                    
+
                     match variable {
                         Variable::RcStr(string) => println!("{}", string),
                         Variable::StaticStr(string) => println!("{}", string),
-                        _ => ()
+                        _ => (),
                     };
 
                     Ok(())
@@ -166,7 +167,7 @@ fn parse_instruction(
                 };
                 let rule_body = match map.get("RULE_BODY") {
                     Some(Variable::RcStr(string)) => (**string).clone(),
-                    _ => anyhow::bail!("RULE_BODY is not a String")
+                    _ => anyhow::bail!("RULE_BODY is not a String"),
                 };
                 let seconds_since_last_input = match map.get("SECONDS_SINCE_LAST_INPUT") {
                     Some(Variable::U64(int)) => *int,
@@ -190,7 +191,7 @@ fn parse_instruction(
                     windows,
                     rule: Some(Rule {
                         id: rule_id,
-                        body: rule_body
+                        body: rule_body,
                     }),
                     keyboard: 0,
                     mouse: 0,

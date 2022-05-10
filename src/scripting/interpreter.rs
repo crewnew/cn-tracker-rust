@@ -85,21 +85,21 @@ impl PartialEq<String> for Variable {
                     Err(_) => return false,
                 };
                 *i == num
-            },
+            }
             U64(i) => {
                 let num: u64 = match other.parse() {
                     Ok(num) => num,
                     Err(_) => return false,
                 };
                 *i == num
-            },
+            }
             Float(i) => {
                 let num: f32 = match other.parse() {
                     Ok(num) => num,
                     Err(_) => return false,
                 };
                 *i == num
-            },
+            }
             StaticStr(string) => *string == *other,
             Bool(boolean) => {
                 let boolean = *boolean;

@@ -6,9 +6,10 @@
 
 use super::{
     super::{
-        pc_common::{self, Event, Process},
+        pc_common::{self, Event, Process, KEYSTROKES, MOUSE_CLICKS},
         Capturer, CapturerCreator,
     },
+    peripherals::initiate_event_listeners,
     types::*,
 };
 use crate::util;
@@ -16,19 +17,15 @@ use anyhow::Context;
 use serde_json::{json, Value as J};
 use std::{
     collections::{BTreeMap, HashMap},
+    sync::atomic::Ordering,
+    thread,
     time::Duration,
 };
-use sysinfo::PidExt;
-use sysinfo::ProcessExt;
-use sysinfo::SystemExt;
-use x11rb::connection::Connection;
-use x11rb::connection::RequestConnection;
-use x11rb::protocol::xproto::get_property;
-use x11rb::protocol::xproto::intern_atom;
-use x11rb::protocol::xproto::Atom;
-use x11rb::protocol::xproto::AtomEnum;
-use x11rb::protocol::xproto::ConnectionExt;
-use x11rb::protocol::xproto::Window;
+use sysinfo::{PidExt, ProcessExt, SystemExt};
+use x11rb::{
+    connection::{Connection, RequestConnection},
+    protocol::xproto::{get_property, intern_atom, Atom, AtomEnum, ConnectionExt, Window},
+};
 
 fn get_property32<Conn: ?Sized + RequestConnection>(
     conn: &Conn,
@@ -78,6 +75,7 @@ pub struct X11Capturer<C: Connection> {
     root_window: u32,
     atom_name_map: HashMap<u32, anyhow::Result<String>>,
 }
+
 impl<C: Connection> X11Capturer<C> {
     fn atom(&self, e: &str) -> anyhow::Result<u32> {
         Ok(intern_atom(&self.conn, true, e.as_bytes())?.reply()?.atom)
@@ -101,6 +99,9 @@ pub fn init() -> anyhow::Result<X11Capturer<impl Connection>> {
     let (conn, screen_num) = x11rb::connect(None)?;
     let screen = &conn.setup().roots[screen_num];
     let root_window = screen.root;
+    if let Err(err) = initiate_event_listeners() {
+        error!("{}", err);
+    }
     Ok(X11Capturer {
         conn,
         root_window,

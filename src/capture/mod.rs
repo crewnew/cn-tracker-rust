@@ -20,7 +20,7 @@ fn default_capture_args() -> CaptureArgs {
 
 #[cfg(target_os = "macos")]
 pub fn create_capturer() -> Box<dyn Capturer> {
-   Box::new(macos::appkit::MacOSCapturer::init())
+    Box::new(macos::appkit::MacOSCapturer::init())
 }
 
 #[cfg(target_os = "windows")]
