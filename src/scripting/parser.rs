@@ -3,7 +3,6 @@ use crate::{
     capture::{
         create_capturer,
         pc_common::{Event, Window},
-        NativeDefaultArgs,
     },
     graphql::SaveToDb,
     scripting::ConditionalFn,

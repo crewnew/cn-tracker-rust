@@ -2,7 +2,6 @@
 
 use crate::{
     scripting::{Rule, Variable, VariableMapType},
-    util,
 };
 use regex::Regex;
 

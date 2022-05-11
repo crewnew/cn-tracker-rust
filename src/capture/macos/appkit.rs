@@ -2,7 +2,7 @@ use super::super::{
     pc_common::{Event, Window},
     Capturer,
 };
-use crate::util;
+
 use accessibility_sys::{
     kAXErrorSuccess, kAXFocusedWindowAttribute, kAXTitleAttribute, kAXTrustedCheckOptionPrompt,
     AXIsProcessTrustedWithOptions, AXUIElementCopyAttributeValue, AXUIElementCreateApplication,

@@ -1,18 +1,21 @@
 #![cfg(target_os = "linux")]
 use super::super::pc_common::{KEYSTROKES, MOUSE_CLICKS};
+use anyhow::anyhow;
 use notify::{op::Op, raw_watcher, RawEvent, RecursiveMode, Watcher};
 use regex::Regex;
+use rustc_hash::FxHashSet;
 use std::{
     fs::{read_to_string, File, OpenOptions},
     io::Read,
-    path::Path,
-    time::Duration,
-    sync::{
-        atomic::{AtomicBool, Ordering},
-        mpsc::channel,
-    },
     mem,
+    path::Path,
+    sync::{
+        atomic::{AtomicBool, AtomicUsize, Ordering},
+        mpsc::{channel, Receiver, TryRecvError},
+        Mutex,
+    },
     thread,
+    time::Duration,
 };
 
 const EV_KEY: u16 = 1;
@@ -31,39 +34,77 @@ pub struct InputEvent {
     pub value: i32,
 }
 
-static SHOULD_BREAK: AtomicBool = AtomicBool::new(false);
+lazy_static! {
+    static ref LISTENING_FILES: Mutex<FxHashSet<String>> = Mutex::new(FxHashSet::default());
+}
+
+static WATCHER_SPAWNED: AtomicBool = AtomicBool::new(false);
 
 const DEV_INPUT_PATH: &str = "/dev/input";
 
-fn event_listener(path: impl AsRef<Path>) -> std::io::Result<()> {
-    let mut buff = [0 as u8; mem::size_of::<InputEvent>()];
-    
-    let mut file = File::open(path.as_ref())?;
-    
+fn event_listener(path: impl AsRef<Path>) -> anyhow::Result<()> {
+    let path = path.as_ref();
+
+    let mut file = File::open(path)?;
+
     loop {
-        file.read(&mut buff)?;
-        
-        let event: InputEvent = unsafe {mem::transmute(buff)};
-        
+        let mut buff = [0 as u8; mem::size_of::<InputEvent>()];
+
+        if let Err(err) = file.read(&mut buff) {
+            error!("{}", err);
+            break;
+        }
+
+        let event: InputEvent = unsafe { mem::transmute(buff) };
+
         if event.type_ != EV_KEY {
             continue;
         }
-        
-        if event.value == 1{
+
         match event.code {
             BTN_LEFT | BTN_RIGHT => {
                 MOUSE_CLICKS.fetch_add(1, Ordering::Relaxed);
-            },
+            }
             _ => {
                 KEYSTROKES.fetch_add(1, Ordering::Relaxed);
             }
         };
-        }
-
-        thread::sleep(Duration::from_millis(30));
     }
 
     Ok(())
+}
+
+fn re_initializer_watcher(
+    watcher: impl Watcher,
+    receiver: Receiver<RawEvent>,
+) -> anyhow::Result<()> {
+    loop {
+        let event = receiver.recv()?;
+
+        let mut hash_set = LISTENING_FILES
+            .lock()
+            .map_err(|err| anyhow!("Couldn't Lock Mutex: {}", err))?;
+
+        let op = event.op?;
+
+        let path = match event.path {
+            Some(path) => path,
+            None => continue,
+        };
+
+        if op == Op::REMOVE {
+            if let Some(string) = path.as_path().to_str() {
+                hash_set.remove(string);
+            }
+        } else if op != Op::CREATE {
+            continue;
+        }
+
+        // Drop it here, because it'll get locked in the function below too.
+        drop(hash_set);
+
+        initiate_event_listeners()?;
+    }
 }
 
 pub fn initiate_event_listeners() -> anyhow::Result<()> {
@@ -71,18 +112,53 @@ pub fn initiate_event_listeners() -> anyhow::Result<()> {
 
     let devices = parse_proc_bus_input_devices(devices)?;
 
-    let (sender, receiver) = channel();
+    if !WATCHER_SPAWNED.load(Ordering::Relaxed) {
+        let (sender, receiver) = channel();
 
-    let mut watcher = raw_watcher(sender)?;
+        let mut watcher = raw_watcher(sender)?;
 
-    for device in devices {
+        watcher.watch(DEV_INPUT_PATH, RecursiveMode::Recursive)?;
+
         thread::spawn(move || {
-            if let Err(err) = event_listener(device) {
+            if let Err(err) = re_initializer_watcher(watcher, receiver) {
                 error!("{}", err);
             }
         });
+        WATCHER_SPAWNED.store(true, Ordering::SeqCst);
     }
-    
+
+    let mut hash_set = LISTENING_FILES
+        .lock()
+        .map_err(|err| anyhow!("Couldn't Lock Mutex: {}", err))?;
+
+    for device in devices {
+        if hash_set.get(&device).is_some() {
+            continue;
+        }
+
+        let device_clone = device.clone();
+
+        thread::spawn(move || {
+            if let Err(err) = event_listener(&device_clone) {
+                error!("{}", err);
+            }
+
+            let mut hash_set = match LISTENING_FILES.lock() {
+                Ok(lock) => lock,
+                Err(err) => {
+                    error!("{}", err);
+                    return;
+                }
+            };
+
+            hash_set.remove(&device_clone);
+        });
+
+        hash_set.insert(device);
+    }
+
+    debug!("Keyboard and Mouse Event Listeners Initialised");
+
     Ok(())
 }
 
