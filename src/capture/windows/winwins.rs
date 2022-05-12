@@ -3,7 +3,6 @@ use super::{
         pc_common::{Event, Process, Window},
         Capturer, CapturerCreator,
     },
-    types::*,
 };
 use crate::util;
 use anyhow::Context;
