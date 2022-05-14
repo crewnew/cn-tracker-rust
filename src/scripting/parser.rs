@@ -2,14 +2,14 @@ use super::{Conditional, Executable, Instruction, Iterative, Rule, Variable, Var
 use crate::{
     capture::{
         create_capturer,
-        pc_common::{Event, Window},
+        pc_common::{Event, Window, KEYSTROKES, MOUSE_CLICKS},
     },
     graphql::SaveToDb,
     scripting::ConditionalFn,
 };
 
 use regex::Regex;
-use std::{convert::TryInto, time::Duration};
+use std::{convert::TryInto, time::Duration, sync::atomic::Ordering};
 
 /// SAFETY: The use of a raw pointer (`*mut VariableMapType`) is safe as long as
 /// you ensure that the value won't get dropped before the execution finishes,
@@ -192,10 +192,12 @@ fn parse_instruction(
                         id: rule_id,
                         body: rule_body,
                     }),
-                    keyboard: 0,
-                    mouse: 0,
+                    keyboard: KEYSTROKES.load(Ordering::Relaxed),
+                    mouse: MOUSE_CLICKS.load(Ordering::Relaxed),
                     seconds_since_last_input,
                 };
+                KEYSTROKES.store(0, Ordering::SeqCst);
+                MOUSE_CLICKS.store(0, Ordering::SeqCst);
                 event.save_to_db()?;
                 Ok(())
             };

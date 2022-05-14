@@ -1,23 +1,141 @@
-use super::{
-    super::{
-        pc_common::{Event, Process, Window},
-        Capturer, CapturerCreator,
-    },
+use super::super::{
+    pc_common::{Event, Process, Window, KEYSTROKES, MOUSE_CLICKS},
+    Capturer, CapturerCreator,
 };
 use crate::util;
 use anyhow::Context;
 use chrono::Utc;
 use regex::Regex;
-use std::{collections::HashMap, ffi::OsString, slice, time::Duration};
+use std::{
+    collections::HashMap, convert::TryFrom, ffi::OsString, ptr, slice, sync::atomic::Ordering,
+    thread, time::Duration,
+};
 use sysinfo::{Pid, ProcessExt, System, SystemExt};
-use winapi::shared::windef::HWND;
+use winapi::{
+    ctypes::c_int,
+    shared::{
+        minwindef::{LPARAM, LRESULT, UINT, WPARAM},
+        windef::{HHOOK, HWND},
+    },
+    um::winuser::{
+        CallNextHookEx, DispatchMessageA, GetMessageA, SetWindowsHookExA, TranslateMessage,
+        UnhookWindowsHookEx, HC_ACTION, MSG, WH_KEYBOARD_LL, WH_MOUSE_LL, WM_KEYDOWN,
+        WM_LBUTTONDOWN,
+    },
+};
 
-pub struct WindowsCapturer {}
+pub struct WindowsCapturer {
+    keyboard_hhook: HHOOK,
+    mouse_hhook: HHOOK,
+}
+
+unsafe impl Send for WindowsCapturer {}
+
+impl Drop for WindowsCapturer {
+    fn drop(&mut self) {
+        unsafe {
+            if !self.keyboard_hhook.is_null() {
+                if UnhookWindowsHookEx(self.keyboard_hhook) == 0 {
+                    panic!("Windows Unhook non-zero return");
+                }
+                debug!("Successfully Unhooked Keyboard");
+            }
+            if !self.mouse_hhook.is_null() {
+                if UnhookWindowsHookEx(self.mouse_hhook) == 0 {
+                    panic!("Windows Unhook non-zero return");
+                }
+                debug!("Successfully Unhooked Mouse");
+            }
+        }
+    }
+}
 
 impl WindowsCapturer {
     pub fn init() -> WindowsCapturer {
-        WindowsCapturer {}
+        let mut windows_capturer = WindowsCapturer {
+            keyboard_hhook: ptr::null_mut(),
+            mouse_hhook: ptr::null_mut(),
+        };
+
+        // Casting the pointer into a usize, so that I can send it to the thread that'll
+        // handle the hook messages and set the pointer of the struct, so that later
+        // when the struct gets dropped, we can free the hook.
+        let capturer_ptr = (&mut windows_capturer as *mut WindowsCapturer) as usize;
+
+        thread::spawn(move || {
+            let capturer_ptr = capturer_ptr as *mut WindowsCapturer;
+
+            if capturer_ptr.is_null() {
+                println!("Capturer_ptr is null");
+                return;
+            }
+
+            let windows_capturer = unsafe { &mut *capturer_ptr };
+
+            unsafe {
+                windows_capturer.keyboard_hhook = SetWindowsHookExA(
+                    WH_KEYBOARD_LL,
+                    Some(hook_callback),
+                    ptr::null_mut(),
+                    0,
+                );
+                windows_capturer.mouse_hhook = SetWindowsHookExA(
+                    WH_MOUSE_LL,
+                    Some(hook_callback),
+                    ptr::null_mut(),
+                    0,
+                );
+            }
+
+            if windows_capturer.keyboard_hhook.is_null() || windows_capturer.mouse_hhook.is_null() {
+                panic!(
+                    "Couldn't Setup Hooks, Keyboard: {} Mouse: {}",
+                    windows_capturer.keyboard_hhook.is_null(),
+                    windows_capturer.mouse_hhook.is_null()
+                );
+            }
+
+            drop(windows_capturer);
+
+            debug!("Initialised Keyboard and Mouse Hooks");
+
+            message_loop();
+        });
+
+        windows_capturer
     }
+}
+
+/// This function handles the Event Loop, which is necessary in order for the hooks to function.
+fn message_loop() {
+    println!("Message loop for the Hooks initiated.");
+    let mut msg = MSG::default();
+    unsafe {
+        while 0 == GetMessageA(&mut msg, ptr::null_mut(), 0, 0) {
+            TranslateMessage(&msg);
+            DispatchMessageA(&msg);
+        }
+        println!("While loop Ended");
+    }
+}
+
+unsafe extern "system" fn hook_callback(
+    code: c_int,
+    w_param: WPARAM,
+    l_param: LPARAM,
+) -> LRESULT {
+    if code == HC_ACTION {
+    match UINT::try_from(w_param).unwrap() {
+        WM_KEYDOWN => {
+            KEYSTROKES.fetch_add(1, Ordering::Relaxed);
+        }
+        WM_LBUTTONDOWN => {
+            MOUSE_CLICKS.fetch_add(1, Ordering::Relaxed);
+        }
+        _ => (),
+    };
+    }
+    CallNextHookEx(ptr::null_mut(), code, w_param, l_param)
 }
 
 #[derive(Deserialize, Debug)]
@@ -53,7 +171,7 @@ impl Capturer for WindowsCapturer {
                 .map_err(|e| anyhow::Error::msg(e))
                 .context("could not get duration since user input")
                 .unwrap_or_else(|e| {
-                    log::warn!("{}", e);
+                    warn!("{}", e);
                     return Duration::ZERO;
                 })
                 .as_secs(),
@@ -122,7 +240,7 @@ pub fn is_alt_tab_window(hwnd: HWND) -> bool {
             GA_ROOTOWNER, GWL_EXSTYLE, STATE_SYSTEM_INVISIBLE, TITLEBARINFO, WS_EX_TOOLWINDOW,
         };
         if IsWindowVisible(hwnd) == 0 {
-            log::debug!("{hwnd:?}: window invisible, return false");
+            debug!("{hwnd:?}: window invisible, return false");
             return false;
         }
         let mut hwnd_walk: HWND = std::ptr::null_mut();
@@ -137,7 +255,7 @@ pub fn is_alt_tab_window(hwnd: HWND) -> bool {
             }
         }
         if hwnd_walk != hwnd {
-            log::debug!("{hwnd:?}: window not root, return false");
+            debug!("{hwnd:?}: window not root, return false");
             return false;
         }
         let mut tit = TITLEBARINFO {
@@ -154,13 +272,13 @@ pub fn is_alt_tab_window(hwnd: HWND) -> bool {
         //ti.cbSize = sizeof(ti);
         /*GetTitleBarInfo(hwnd, &mut tit);
         if (tit.rgstate[0] & STATE_SYSTEM_INVISIBLE) != 0 {
-            log::debug!("{hwnd:?}: rgstate STATE_SYSTEM_INVISIBLE, return false");
+            debug!("{hwnd:?}: rgstate STATE_SYSTEM_INVISIBLE, return false");
             return false;
         }*/
         // Tool windows should not be displayed either, these do not appear in the
         // task bar.
         if (GetWindowLongW(hwnd, GWL_EXSTYLE) as u32 & WS_EX_TOOLWINDOW) != 0 {
-            log::debug!("{hwnd:?}: GWL_EXSTYLE=WS_EX_TOOLWINDOW, return false");
+            debug!("{hwnd:?}: GWL_EXSTYLE=WS_EX_TOOLWINDOW, return false");
             return false;
         }
         return true;
@@ -204,7 +322,7 @@ pub fn get_window_class_name(hwnd: HWND) -> String {
 
 #[allow(dead_code)]
 pub fn get_all_windows(filter_alt_tab: bool) -> Vec<Window> {
-    log::debug!("getting windows!");
+    debug!("getting windows!");
     let mut vec = Vec::new();
     let mut system = System::new();
     let a = |hwnd| -> EnumResult {
@@ -213,7 +331,7 @@ pub fn get_all_windows(filter_alt_tab: bool) -> Vec<Window> {
                 vec.push(window);
             }
         } else {
-            log::debug!(
+            debug!(
                 "Skipping window (not-alt-tabbable): {hwnd:?}: {}",
                 get_window_title(hwnd)
             );

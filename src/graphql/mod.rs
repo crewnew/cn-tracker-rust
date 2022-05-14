@@ -1,11 +1,16 @@
 use gql_client::Client;
 use lazy_static::lazy_static;
 use std::collections::HashMap;
-const ENDPOINT: &str = "http://localhost:8055/graphql";
 
 lazy_static! {
+    static ref ENDPOINT: String = {
+        let mut args = std::env::args();
+        args.next();
+        args.next()
+            .unwrap_or_else(|| "http://localhost:8055/graphql".to_owned())
+    };
     static ref CLIENT: Client<'static> = Client::new_with_headers(
-        ENDPOINT,
+        &ENDPOINT,
         HashMap::from([("Authorization", "Bearer admin_token")])
     );
 }

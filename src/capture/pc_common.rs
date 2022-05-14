@@ -1,12 +1,13 @@
 #![allow(clippy::trivial_regex)]
 
-use crate::{
-    scripting::{Rule, Variable, VariableMapType},
-};
+use crate::scripting::{Rule, Variable, VariableMapType};
 use regex::Regex;
 
 use std::{convert::TryFrom, sync::atomic::AtomicUsize};
 use sysinfo::ProcessExt;
+
+pub static KEYSTROKES: AtomicUsize = AtomicUsize::new(0);
+pub static MOUSE_CLICKS: AtomicUsize = AtomicUsize::new(0);
 
 lazy_static::lazy_static! {
     static ref FORMATTED_TITLE_MATCH: Regex = Regex::new(r#"🛤([a-z]{2,5})🠚(.*)🠘"#).unwrap();
@@ -14,9 +15,6 @@ lazy_static::lazy_static! {
     static ref FORMATTED_TITLE_SPLIT: Regex = Regex::new("🙰").unwrap();
     static ref FORMATTED_TITLE_KV: Regex = Regex::new("^([a-z0-9]+)=(.*)$").unwrap();
     static ref JSON_TITLE: Regex = Regex::new(r#"\{".*[^\\]"}"#).unwrap();
-
-    pub static ref KEYSTROKES: AtomicUsize = AtomicUsize::new(0);
-    pub static ref MOUSE_CLICKS: AtomicUsize = AtomicUsize::new(0);
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
