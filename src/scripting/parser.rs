@@ -9,7 +9,7 @@ use crate::{
 };
 
 use regex::Regex;
-use std::{convert::TryInto, time::Duration, sync::atomic::Ordering};
+use std::{convert::TryInto, sync::atomic::Ordering, time::Duration};
 
 /// SAFETY: The use of a raw pointer (`*mut VariableMapType`) is safe as long as
 /// you ensure that the value won't get dropped before the execution finishes,

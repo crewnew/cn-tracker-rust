@@ -73,18 +73,10 @@ impl WindowsCapturer {
             let windows_capturer = unsafe { &mut *capturer_ptr };
 
             unsafe {
-                windows_capturer.keyboard_hhook = SetWindowsHookExA(
-                    WH_KEYBOARD_LL,
-                    Some(hook_callback),
-                    ptr::null_mut(),
-                    0,
-                );
-                windows_capturer.mouse_hhook = SetWindowsHookExA(
-                    WH_MOUSE_LL,
-                    Some(hook_callback),
-                    ptr::null_mut(),
-                    0,
-                );
+                windows_capturer.keyboard_hhook =
+                    SetWindowsHookExA(WH_KEYBOARD_LL, Some(hook_callback), ptr::null_mut(), 0);
+                windows_capturer.mouse_hhook =
+                    SetWindowsHookExA(WH_MOUSE_LL, Some(hook_callback), ptr::null_mut(), 0);
             }
 
             if windows_capturer.keyboard_hhook.is_null() || windows_capturer.mouse_hhook.is_null() {
@@ -119,21 +111,17 @@ fn message_loop() {
     }
 }
 
-unsafe extern "system" fn hook_callback(
-    code: c_int,
-    w_param: WPARAM,
-    l_param: LPARAM,
-) -> LRESULT {
+unsafe extern "system" fn hook_callback(code: c_int, w_param: WPARAM, l_param: LPARAM) -> LRESULT {
     if code == HC_ACTION {
-    match UINT::try_from(w_param).unwrap() {
-        WM_KEYDOWN => {
-            KEYSTROKES.fetch_add(1, Ordering::Relaxed);
-        }
-        WM_LBUTTONDOWN => {
-            MOUSE_CLICKS.fetch_add(1, Ordering::Relaxed);
-        }
-        _ => (),
-    };
+        match UINT::try_from(w_param).unwrap() {
+            WM_KEYDOWN => {
+                KEYSTROKES.fetch_add(1, Ordering::Relaxed);
+            }
+            WM_LBUTTONDOWN => {
+                MOUSE_CLICKS.fetch_add(1, Ordering::Relaxed);
+            }
+            _ => (),
+        };
     }
     CallNextHookEx(ptr::null_mut(), code, w_param, l_param)
 }
