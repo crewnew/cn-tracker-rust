@@ -42,6 +42,61 @@ static WATCHER_SPAWNED: AtomicBool = AtomicBool::new(false);
 
 const DEV_INPUT_PATH: &str = "/dev/input";
 
+pub fn initiate_event_listeners() -> anyhow::Result<()> {
+    let devices = read_to_string("/proc/bus/input/devices")?;
+
+    let devices = parse_proc_bus_input_devices(devices)?;
+
+    if !WATCHER_SPAWNED.load(Ordering::Relaxed) {
+        let (sender, receiver) = channel();
+
+        let mut watcher = raw_watcher(sender)?;
+
+        watcher.watch(DEV_INPUT_PATH, RecursiveMode::Recursive)?;
+
+        thread::spawn(move || {
+            if let Err(err) = re_initializer_watcher(watcher, receiver) {
+                error!("{}", err);
+            }
+        });
+        WATCHER_SPAWNED.store(true, Ordering::SeqCst);
+    }
+
+    let mut hash_set = LISTENING_FILES
+        .lock()
+        .map_err(|err| anyhow!("Couldn't Lock Mutex: {}", err))?;
+
+    for device in devices {
+        if hash_set.get(&device).is_some() {
+            continue;
+        }
+
+        let device_clone = device.clone();
+
+        thread::spawn(move || {
+            if let Err(err) = event_listener(&device_clone) {
+                error!("{}", err);
+            }
+
+            let mut hash_set = match LISTENING_FILES.lock() {
+                Ok(lock) => lock,
+                Err(err) => {
+                    error!("{}", err);
+                    return;
+                }
+            };
+
+            hash_set.remove(&device_clone);
+        });
+
+        hash_set.insert(device);
+    }
+
+    debug!("Keyboard and Mouse Event Listeners Initialised");
+
+    Ok(())
+}
+
 fn event_listener(path: impl AsRef<Path>) -> anyhow::Result<()> {
     let path = path.as_ref();
 
@@ -105,61 +160,6 @@ fn re_initializer_watcher(
 
         initiate_event_listeners()?;
     }
-}
-
-pub fn initiate_event_listeners() -> anyhow::Result<()> {
-    let devices = read_to_string("/proc/bus/input/devices")?;
-
-    let devices = parse_proc_bus_input_devices(devices)?;
-
-    if !WATCHER_SPAWNED.load(Ordering::Relaxed) {
-        let (sender, receiver) = channel();
-
-        let mut watcher = raw_watcher(sender)?;
-
-        watcher.watch(DEV_INPUT_PATH, RecursiveMode::Recursive)?;
-
-        thread::spawn(move || {
-            if let Err(err) = re_initializer_watcher(watcher, receiver) {
-                error!("{}", err);
-            }
-        });
-        WATCHER_SPAWNED.store(true, Ordering::SeqCst);
-    }
-
-    let mut hash_set = LISTENING_FILES
-        .lock()
-        .map_err(|err| anyhow!("Couldn't Lock Mutex: {}", err))?;
-
-    for device in devices {
-        if hash_set.get(&device).is_some() {
-            continue;
-        }
-
-        let device_clone = device.clone();
-
-        thread::spawn(move || {
-            if let Err(err) = event_listener(&device_clone) {
-                error!("{}", err);
-            }
-
-            let mut hash_set = match LISTENING_FILES.lock() {
-                Ok(lock) => lock,
-                Err(err) => {
-                    error!("{}", err);
-                    return;
-                }
-            };
-
-            hash_set.remove(&device_clone);
-        });
-
-        hash_set.insert(device);
-    }
-
-    debug!("Keyboard and Mouse Event Listeners Initialised");
-
-    Ok(())
 }
 
 /// Returns an event[0-9] by parsing a given string.

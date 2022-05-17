@@ -1,6 +1,6 @@
 use super::super::{
     pc_common::{Event, Process, Window, KEYSTROKES, MOUSE_CLICKS},
-    Capturer, CapturerCreator,
+    Capturer,
 };
 use crate::util;
 use anyhow::Context;
@@ -24,106 +24,12 @@ use winapi::{
     },
 };
 
-pub struct WindowsCapturer {
-    keyboard_hhook: HHOOK,
-    mouse_hhook: HHOOK,
-}
-
-unsafe impl Send for WindowsCapturer {}
-
-impl Drop for WindowsCapturer {
-    fn drop(&mut self) {
-        unsafe {
-            if !self.keyboard_hhook.is_null() {
-                if UnhookWindowsHookEx(self.keyboard_hhook) == 0 {
-                    panic!("Windows Unhook non-zero return");
-                }
-                debug!("Successfully Unhooked Keyboard");
-            }
-            if !self.mouse_hhook.is_null() {
-                if UnhookWindowsHookEx(self.mouse_hhook) == 0 {
-                    panic!("Windows Unhook non-zero return");
-                }
-                debug!("Successfully Unhooked Mouse");
-            }
-        }
-    }
-}
+pub struct WindowsCapturer {}
 
 impl WindowsCapturer {
     pub fn init() -> WindowsCapturer {
-        let mut windows_capturer = WindowsCapturer {
-            keyboard_hhook: ptr::null_mut(),
-            mouse_hhook: ptr::null_mut(),
-        };
-
-        // Casting the pointer into a usize, so that I can send it to the thread that'll
-        // handle the hook messages and set the pointer of the struct, so that later
-        // when the struct gets dropped, we can free the hook.
-        let capturer_ptr = (&mut windows_capturer as *mut WindowsCapturer) as usize;
-
-        thread::spawn(move || {
-            let capturer_ptr = capturer_ptr as *mut WindowsCapturer;
-
-            if capturer_ptr.is_null() {
-                println!("Capturer_ptr is null");
-                return;
-            }
-
-            let windows_capturer = unsafe { &mut *capturer_ptr };
-
-            unsafe {
-                windows_capturer.keyboard_hhook =
-                    SetWindowsHookExA(WH_KEYBOARD_LL, Some(hook_callback), ptr::null_mut(), 0);
-                windows_capturer.mouse_hhook =
-                    SetWindowsHookExA(WH_MOUSE_LL, Some(hook_callback), ptr::null_mut(), 0);
-            }
-
-            if windows_capturer.keyboard_hhook.is_null() || windows_capturer.mouse_hhook.is_null() {
-                panic!(
-                    "Couldn't Setup Hooks, Keyboard: {} Mouse: {}",
-                    windows_capturer.keyboard_hhook.is_null(),
-                    windows_capturer.mouse_hhook.is_null()
-                );
-            }
-
-            drop(windows_capturer);
-
-            debug!("Initialised Keyboard and Mouse Hooks");
-
-            message_loop();
-        });
-
-        windows_capturer
+        WindowsCapturer {}
     }
-}
-
-/// This function handles the Event Loop, which is necessary in order for the hooks to function.
-fn message_loop() {
-    println!("Message loop for the Hooks initiated.");
-    let mut msg = MSG::default();
-    unsafe {
-        while 0 == GetMessageA(&mut msg, ptr::null_mut(), 0, 0) {
-            TranslateMessage(&msg);
-            DispatchMessageA(&msg);
-        }
-        println!("While loop Ended");
-    }
-}
-
-unsafe extern "system" fn hook_callback(code: c_int, w_param: WPARAM, l_param: LPARAM) -> LRESULT {
-    if code == HC_ACTION {
-        match UINT::try_from(w_param).unwrap() {
-            WM_KEYDOWN => {
-                KEYSTROKES.fetch_add(1, Ordering::Relaxed);
-            }
-            WM_LBUTTONDOWN => {
-                MOUSE_CLICKS.fetch_add(1, Ordering::Relaxed);
-            }
-            _ => (),
-        };
-    }
-    CallNextHookEx(ptr::null_mut(), code, w_param, l_param)
 }
 
 #[derive(Deserialize, Debug)]

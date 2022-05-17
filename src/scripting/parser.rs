@@ -145,11 +145,7 @@ fn parse_instruction(
                         None => anyhow::bail!("Couldn't find the Variable with Key {}", word),
                     };
 
-                    match variable {
-                        Variable::RcStr(string) => println!("{}", string),
-                        Variable::StaticStr(string) => println!("{}", string),
-                        _ => (),
-                    };
+                    println!("{}", variable);
 
                     Ok(())
                 })
@@ -199,6 +195,15 @@ fn parse_instruction(
                 KEYSTROKES.store(0, Ordering::SeqCst);
                 MOUSE_CLICKS.store(0, Ordering::SeqCst);
                 event.save_to_db()?;
+                Ok(())
+            };
+            Ok(Some(function.into()))
+        }
+        "GET_PERIPHERALS" => {
+            let function = move || {
+                let map = unsafe { &mut *variable_map };
+                map.insert("KEYSTROKES", KEYSTROKES.load(Ordering::Relaxed).into());
+                map.insert("MOUSE_CLICKS", MOUSE_CLICKS.load(Ordering::Relaxed).into());
                 Ok(())
             };
             Ok(Some(function.into()))

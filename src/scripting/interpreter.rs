@@ -1,5 +1,5 @@
 use rustc_hash::FxHashMap;
-use std::rc::Rc;
+use std::{fmt, rc::Rc};
 
 pub type VariableMapType = FxHashMap<&'static str, Variable>;
 pub type ConditionalFn = Box<dyn FnMut() -> bool>;
@@ -24,6 +24,22 @@ pub enum Variable {
     Bool(bool),
     Vector(Vec<Variable>),
     Map(VariableMapType),
+}
+
+impl std::fmt::Display for Variable {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        use Variable::*;
+        match self {
+            Int(int) => write!(f, "{}", int),
+            U64(int) => write!(f, "{}", int),
+            Float(float) => write!(f, "{}", float),
+            RcStr(string) => write!(f, "{}", *string),
+            StaticStr(string) => write!(f, "{}", string),
+            Bool(boolean) => write!(f, "{}", boolean),
+            Vector(vec) => write!(f, "{:?}", vec),
+            Map(map) => write!(f, "{:?}", map),
+        }
+    }
 }
 
 impl From<&str> for Variable {

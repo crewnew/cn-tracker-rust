@@ -2,6 +2,7 @@ use lazy_static::lazy_static;
 use rustc_hash::FxHashMap;
 use std::thread;
 use timetrackrs::{
+    capture::capture_peripherals,
     graphql::get_rules,
     scripting::*,
     util::{get_os_info, OsInfo},
@@ -12,6 +13,7 @@ lazy_static! {
 }
 
 fn main() {
+    capture_peripherals();
     let rules = get_rules().expect("Couldn't get Rules");
     let mut join_handles = vec![];
 

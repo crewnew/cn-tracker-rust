@@ -1,6 +1,9 @@
-use super::super::{
-    pc_common::{Event, Window},
-    Capturer,
+use super::{
+    super::{
+        pc_common::{Event, Window},
+        Capturer,
+    },
+    peripherals::capture_peripherals,
 };
 
 use accessibility_sys::{
@@ -21,7 +24,10 @@ use core_graphics::window::{
 use objc::{msg_send, runtime::Object, sel, sel_impl};
 use std::time::Duration;
 
-use std::ffi::{c_void, CStr};
+use std::{
+    ffi::{c_void, CStr},
+    thread,
+};
 use sysinfo::{Pid, System, SystemExt};
 
 pub struct MacOSCapturer {
@@ -31,6 +37,7 @@ pub struct MacOSCapturer {
 impl MacOSCapturer {
     pub fn init() -> MacOSCapturer {
         let accessibility_permission = unsafe { check_accessibility_permission() };
+        thread::spawn(capture_peripherals);
         MacOSCapturer {
             accessibility_permission,
         }
