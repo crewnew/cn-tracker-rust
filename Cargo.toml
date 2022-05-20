@@ -5,7 +5,6 @@ authors = ["phiresky <phireskyde+git@gmail.com>"]
 edition = "2018"
 license = "AGPL-3.0-or-later"
 
-
 [dependencies]
 anyhow = "1.0.57"
 serde = { version = "1.0.136", features = ["derive"] }

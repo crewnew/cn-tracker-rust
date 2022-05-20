@@ -3,5 +3,6 @@ fn main() {
 
     if target == "macos" {
         println!("cargo:rustc-link-lib=framework=AppKit");
+        println!("cargo:rustc-link-lib=framework=CoreWLAN");
     }
 }
