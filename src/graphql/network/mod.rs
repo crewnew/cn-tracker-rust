@@ -1,7 +1,5 @@
 use super::{Id, Variables, CLIENT};
 use crate::capture::pc_common::{get_network_ssid, NetworkInfo};
-use anyhow::Context;
-use sysinfo::SystemExt;
 
 const CREATE_NETWORK_INFO_MUTATION: &str = include_str!("CreateNetwork.graphql");
 const GET_NETWORK_ID_QUERY: &str = include_str!("QueryNetwork.graphql");
@@ -9,7 +7,6 @@ const GET_NETWORK_ID_QUERY: &str = include_str!("QueryNetwork.graphql");
 pub fn get_network_info() -> anyhow::Result<NetworkInfo> {
     #[derive(Debug, Deserialize)]
     struct Data {
-        #[serde(rename = "Networks")]
         networks: Vec<Id>,
     }
     #[derive(Serialize)]
@@ -32,7 +29,7 @@ pub fn get_network_info() -> anyhow::Result<NetworkInfo> {
     if data.networks.is_empty() {
         #[derive(Debug, Deserialize)]
         struct CreateNetworkResult {
-            #[serde(rename = "create_Networks_item")]
+            #[serde(rename = "create_networks_item")]
             network: Id,
         }
         let variables = Variables {

@@ -2,7 +2,7 @@ use super::{Conditional, Executable, Instruction, Iterative, Rule, Variable, Var
 use crate::{
     capture::{
         create_capturer,
-        pc_common::{Event, Window, KEYSTROKES, MOUSE_CLICKS},
+        pc_common::{get_network_ssid, Event, Window, KEYSTROKES, MOUSE_CLICKS},
     },
     graphql::{get_network_info, SaveToDb},
     scripting::ConditionalFn,
@@ -200,6 +200,16 @@ fn parse_instruction(
                 KEYSTROKES.store(0, Ordering::SeqCst);
                 MOUSE_CLICKS.store(0, Ordering::SeqCst);
                 event.save_to_db()?;
+                Ok(())
+            };
+            Ok(Some(function.into()))
+        }
+        "GET_NETWORK_SSID" => {
+            let function = move || {
+                let map = unsafe { &mut *variable_map };
+                if let Some(ssid) = get_network_ssid() {
+                    map.insert("NETWORK_SSID", ssid.into());
+                }
                 Ok(())
             };
             Ok(Some(function.into()))

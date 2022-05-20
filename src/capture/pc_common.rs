@@ -27,9 +27,11 @@ pub struct NetworkInfo {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Event {
+    #[serde(rename = "window_ids")]
     pub windows: Vec<Window>,
     #[serde(rename = "rule_id")]
     pub rule: Option<Rule>,
+    #[serde(rename = "network_id")]
     pub network: Option<NetworkInfo>,
     pub keyboard: usize,
     pub mouse: usize,
@@ -39,6 +41,7 @@ pub struct Event {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Window {
     pub title: Option<String>,
+    #[serde(rename = "process_id")]
     pub process: Process,
 }
 

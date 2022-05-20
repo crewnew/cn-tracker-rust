@@ -1,5 +1,5 @@
 query network($data: String!) {
-  Networks(search: $data) {
+  networks(search: $data) {
     id
     name
   }

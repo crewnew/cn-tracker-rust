@@ -1,5 +1,5 @@
-mutation networks($data: create_Networks_input!) {
-  create_Networks_item(data: $data) {
+mutation networks($data: create_networks_input!) {
+  create_networks_item(data: $data) {
     id
   }
 }
