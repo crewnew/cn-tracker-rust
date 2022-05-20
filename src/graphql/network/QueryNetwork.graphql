@@ -1,0 +1,6 @@
+query network($data: String!) {
+  Networks(search: $data) {
+    id
+    name
+  }
+}

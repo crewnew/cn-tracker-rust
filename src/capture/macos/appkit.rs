@@ -142,6 +142,7 @@ impl Capturer for MacOSCapturer {
             rule: None,
             keyboard: 0,
             mouse: 0,
+            network: None,
             seconds_since_last_input: user_idle::UserIdle::get_time()
                 .map(|e| e.duration())
                 .map_err(|e| anyhow::Error::msg(e))
@@ -171,13 +172,13 @@ unsafe fn check_accessibility_permission() -> bool {
 }
 
 /// Frees any Objects
-unsafe fn release(object: *mut Object) {
+pub unsafe fn release(object: *mut Object) {
     let _: () = msg_send![object, release];
 }
 
 /// Turns an
 /// [NSString](https://developer.apple.com/documentation/foundation/nsstring?language=objc) Object into a `&str`.
-unsafe fn ns_string_to_string(ns_string: *mut Object) -> Option<String> {
+pub unsafe fn ns_string_to_string(ns_string: *mut Object) -> Option<String> {
     // Get length of name
     let string_size: usize = msg_send![ns_string, lengthOfBytesUsingEncoding: 4];
 

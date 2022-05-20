@@ -2,7 +2,7 @@ use super::super::{
     pc_common::{Event, Process, Window, KEYSTROKES, MOUSE_CLICKS},
     Capturer,
 };
-use crate::util;
+use crate::{graphql::get_network_info, util};
 use anyhow::Context;
 use chrono::Utc;
 use regex::Regex;
@@ -60,6 +60,7 @@ impl Capturer for WindowsCapturer {
             rule: None,
             keyboard: 0,
             mouse: 0,
+            network: None,
             seconds_since_last_input: user_idle::UserIdle::get_time()
                 .map(|e| e.duration())
                 .map_err(|e| anyhow::Error::msg(e))
@@ -73,22 +74,6 @@ impl Capturer for WindowsCapturer {
     }
 }
 
-fn get_wifi_ssid() -> anyhow::Result<Option<String>> {
-    lazy_static! {
-        static ref SSID_MATCH: Regex = Regex::new(r"(?m)^\s*SSID\s*:\s*(.*?)\r?$").unwrap();
-    }
-    use std::os::windows::process::CommandExt;
-    let output = std::process::Command::new("netsh")
-        .creation_flags(winapi::um::winbase::CREATE_NO_WINDOW)
-        .args(&["wlan", "show", "interfaces"])
-        .output()
-        .context("could not run netsh")?;
-    let output = String::from_utf8_lossy(&output.stdout);
-    let matched = SSID_MATCH
-        .captures(&output)
-        .map(|m| m.get(1).unwrap().as_str().to_string());
-    return Ok(matched);
-}
 #[allow(dead_code)]
 pub fn get_foreground_window() -> Option<HWND> {
     unsafe {

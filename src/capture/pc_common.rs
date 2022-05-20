@@ -1,20 +1,28 @@
 #![allow(clippy::trivial_regex)]
 
-use crate::scripting::{Rule, Variable, VariableMapType};
-use regex::Regex;
-
+use crate::{
+    capture,
+    scripting::{Rule, Variable, VariableMapType},
+};
 use std::{convert::TryFrom, sync::atomic::AtomicUsize};
-use sysinfo::ProcessExt;
+use sysinfo::{NetworkExt, NetworksExt, ProcessExt, System, SystemExt};
+
+#[cfg(target_os = "linux")]
+pub use capture::linux::network::get_network_ssid;
+
+#[cfg(target_os = "macos")]
+pub use capture::macos::network::get_network_ssid;
+
+#[cfg(target_os = "windows")]
+pub use capture::windows::network::get_network_ssid;
 
 pub static KEYSTROKES: AtomicUsize = AtomicUsize::new(0);
 pub static MOUSE_CLICKS: AtomicUsize = AtomicUsize::new(0);
 
-lazy_static::lazy_static! {
-    static ref FORMATTED_TITLE_MATCH: Regex = Regex::new(r#"🛤([a-z]{2,5})🠚(.*)🠘"#).unwrap();
-
-    static ref FORMATTED_TITLE_SPLIT: Regex = Regex::new("🙰").unwrap();
-    static ref FORMATTED_TITLE_KV: Regex = Regex::new("^([a-z0-9]+)=(.*)$").unwrap();
-    static ref JSON_TITLE: Regex = Regex::new(r#"\{".*[^\\]"}"#).unwrap();
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NetworkInfo {
+    pub id: String,
+    pub name: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -22,6 +30,7 @@ pub struct Event {
     pub windows: Vec<Window>,
     #[serde(rename = "rule_id")]
     pub rule: Option<Rule>,
+    pub network: Option<NetworkInfo>,
     pub keyboard: usize,
     pub mouse: usize,
     pub seconds_since_last_input: u64,

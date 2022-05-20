@@ -30,7 +30,9 @@ struct Id {
 }
 
 mod event;
+mod network;
 mod rule;
 
 pub use event::*;
+pub use network::*;
 pub use rule::*;

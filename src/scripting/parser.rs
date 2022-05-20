@@ -4,7 +4,7 @@ use crate::{
         create_capturer,
         pc_common::{Event, Window, KEYSTROKES, MOUSE_CLICKS},
     },
-    graphql::SaveToDb,
+    graphql::{get_network_info, SaveToDb},
     scripting::ConditionalFn,
 };
 
@@ -182,11 +182,16 @@ fn parse_instruction(
                     }
                     _ => anyhow::bail!("WINDOWS is not a Vector"),
                 };
+
                 let event = Event {
                     windows,
                     rule: Some(Rule {
                         id: rule_id,
                         body: rule_body,
+                    }),
+                    network: get_network_info().map(|n| Some(n)).unwrap_or_else(|e| {
+                        error!("{}", e);
+                        None
                     }),
                     keyboard: KEYSTROKES.load(Ordering::Relaxed),
                     mouse: MOUSE_CLICKS.load(Ordering::Relaxed),

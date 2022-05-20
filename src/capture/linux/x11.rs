@@ -7,12 +7,12 @@
 use super::{
     super::{
         pc_common::{self, Event, Process, KEYSTROKES, MOUSE_CLICKS},
-        Capturer, CapturerCreator,
+        Capturer,
     },
     peripherals::initiate_event_listeners,
     types::*,
 };
-use crate::util;
+use crate::{graphql::get_network_info, util};
 use anyhow::Context;
 use serde_json::{json, Value as J};
 use std::{
@@ -246,6 +246,7 @@ impl<C: Connection + Send> Capturer for X11Capturer<C> {
             rule: None,
             keyboard: 0,
             mouse: 0,
+            network: None,
             seconds_since_last_input: user_idle::UserIdle::get_time()
                 .map(|e| e.duration())
                 .map_err(|e| anyhow::Error::msg(e))

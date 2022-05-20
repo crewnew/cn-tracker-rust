@@ -13,6 +13,7 @@ lazy_static! {
 }
 
 fn main() {
+    env_logger::init();
     capture_peripherals();
     let rules = get_rules().expect("Couldn't get Rules");
     let mut join_handles = vec![];

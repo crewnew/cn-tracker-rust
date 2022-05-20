@@ -7,6 +7,9 @@ extern crate log;
 extern crate enum_dispatch;
 #[macro_use]
 extern crate lazy_static;
+#[macro_use]
+extern crate anyhow;
+
 pub mod capture;
 pub mod expand;
 pub mod graphql;
