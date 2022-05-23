@@ -1,5 +1,5 @@
 use rustc_hash::FxHashMap;
-use std::{fmt, rc::Rc};
+use std::{cmp::Ordering, fmt, rc::Rc};
 
 pub type VariableMapType = FxHashMap<&'static str, Variable>;
 pub type ConditionalFn = Box<dyn FnMut() -> bool>;
@@ -87,6 +87,18 @@ impl From<VariableMapType> for Variable {
 impl<V: Into<Variable>> From<Vec<V>> for Variable {
     fn from(vec: Vec<V>) -> Self {
         Self::Vector(vec.into_iter().map(|v| v.into()).collect())
+    }
+}
+
+impl PartialOrd<Variable> for Variable {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        use Variable::*;
+        match (self, other) {
+            (Int(i), Int(j)) => i.partial_cmp(j),
+            (U64(i), U64(j)) => i.partial_cmp(j),
+            (Float(i), Float(j)) => i.partial_cmp(j),
+            _ => None,
+        }
     }
 }
 

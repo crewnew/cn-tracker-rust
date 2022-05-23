@@ -9,7 +9,7 @@ use crate::{
 };
 
 use regex::Regex;
-use std::{convert::TryInto, sync::atomic::Ordering, time::Duration};
+use std::{cmp::PartialOrd, convert::TryInto, sync::atomic::Ordering, time::Duration};
 
 /// SAFETY: The use of a raw pointer (`*mut VariableMapType`) is safe as long as
 /// you ensure that the value won't get dropped before the execution finishes,
@@ -458,6 +458,193 @@ fn parse_conditional(
 
                     if let Some(conditions) = conditions {
                         conditions.push(conditional_fn)
+                    }
+                }
+                "BIGGER" => {
+                    let first = line[i - 1];
+
+                    let is_string_first = is_string(first);
+
+                    let first = if is_string_first {
+                        first[1..first.len() - 1].to_owned()
+                    } else {
+                        first.to_owned()
+                    };
+
+                    let second = line[i + 1];
+
+                    let is_string_second = is_string(second);
+
+                    let second = if is_string_second {
+                        second[1..second.len() - 1].to_owned()
+                    } else {
+                        second.to_owned()
+                    };
+
+                    // -- ToDo
+                    // Instead of parsing the string as a number
+                    // everytime maybe parse it beforehand and just pass the number
+                    let conditional_fn = Box::new(move || {
+                        use Variable::*;
+
+                        let map = unsafe { &*variable_map };
+
+                        if is_string_first && is_string_second {
+                            let first_variable: usize = match first.as_str().parse() {
+                                Ok(variable) => variable,
+                                Err(_) => return false,
+                            };
+
+                            let second_variable: usize = match second.as_str().parse() {
+                                Ok(variable) => variable,
+                                Err(_) => return false,
+                            };
+
+                            return first_variable > second_variable;
+                        } else if !is_string_first && is_string_second {
+                            let first_variable = match map.get(first.as_str()) {
+                                Some(variable) => variable,
+                                None => return false,
+                            };
+
+                            let second_variable: usize = match second.as_str().parse() {
+                                Ok(variable) => variable,
+                                Err(_) => return false,
+                            };
+
+                            return match *first_variable {
+                                Int(i) => i > second_variable,
+                                U64(i) => i > second_variable as u64,
+                                Float(i) => i > second_variable as f32,
+                                _ => false,
+                            };
+                        } else if is_string_first && !is_string_second {
+                            let first_variable: usize = match first.as_str().parse() {
+                                Ok(variable) => variable,
+                                Err(_) => return false,
+                            };
+
+                            let second_variable = match map.get(second.as_str()) {
+                                Some(variable) => variable,
+                                None => return false,
+                            };
+
+                            return match *second_variable {
+                                Int(i) => i > first_variable,
+                                U64(i) => i > first_variable as u64,
+                                Float(i) => i > first_variable as f32,
+                                _ => false,
+                            };
+                        } else {
+                            let first_variable = match map.get(first.as_str()) {
+                                Some(variable) => variable,
+                                None => return false,
+                            };
+
+                            let second_variable = match map.get(second.as_str()) {
+                                Some(variable) => variable,
+                                None => return false,
+                            };
+
+                            return first_variable > second_variable;
+                        }
+                    });
+
+                    if let Some(conditions) = conditions {
+                        conditions.push(conditional_fn);
+                    }
+                }
+                "LESSER" => {
+                    let first = line[i - 1];
+
+                    let is_string_first = is_string(first);
+
+                    let first = if is_string_first {
+                        first[1..first.len() - 1].to_owned()
+                    } else {
+                        first.to_owned()
+                    };
+
+                    let second = line[i + 1];
+
+                    let is_string_second = is_string(second);
+
+                    let second = if is_string_second {
+                        second[1..second.len() - 1].to_owned()
+                    } else {
+                        second.to_owned()
+                    };
+
+                    // -- ToDo
+                    // Instead of parsing the string as a number
+                    // everytime maybe parse it beforehand and just pass the number
+                    let conditional_fn = Box::new(move || {
+                        use Variable::*;
+
+                        let map = unsafe { &*variable_map };
+
+                        if is_string_first && is_string_second {
+                            let first_variable: usize = match first.as_str().parse() {
+                                Ok(variable) => variable,
+                                Err(_) => return false,
+                            };
+
+                            let second_variable: usize = match second.as_str().parse() {
+                                Ok(variable) => variable,
+                                Err(_) => return false,
+                            };
+                            return first_variable < second_variable;
+                        } else if !is_string_first && is_string_second {
+                            let first_variable = match map.get(first.as_str()) {
+                                Some(variable) => variable,
+                                None => return false,
+                            };
+
+                            let second_variable: usize = match second.as_str().parse() {
+                                Ok(variable) => variable,
+                                Err(_) => return false,
+                            };
+
+                            return match *first_variable {
+                                Int(i) => i < second_variable,
+                                U64(i) => i < second_variable as u64,
+                                Float(i) => i < second_variable as f32,
+                                _ => false,
+                            };
+                        } else if is_string_first && !is_string_second {
+                            let first_variable: usize = match first.as_str().parse() {
+                                Ok(variable) => variable,
+                                Err(_) => return false,
+                            };
+
+                            let second_variable = match map.get(second.as_str()) {
+                                Some(variable) => variable,
+                                None => return false,
+                            };
+
+                            return match *second_variable {
+                                Int(i) => i < first_variable,
+                                U64(i) => i < first_variable as u64,
+                                Float(i) => i < first_variable as f32,
+                                _ => false,
+                            };
+                        } else {
+                            let first_variable = match map.get(first.as_str()) {
+                                Some(variable) => variable,
+                                None => return false,
+                            };
+
+                            let second_variable = match map.get(second.as_str()) {
+                                Some(variable) => variable,
+                                None => return false,
+                            };
+
+                            return first_variable < second_variable;
+                        }
+                    });
+
+                    if let Some(conditions) = conditions {
+                        conditions.push(conditional_fn);
                     }
                 }
                 "EQ" => {

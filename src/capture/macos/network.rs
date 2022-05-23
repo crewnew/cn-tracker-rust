@@ -1,9 +1,5 @@
-use super::appkit::{ns_string_to_string};
-use objc::{
-    class, msg_send,
-    runtime::{Object},
-    sel, sel_impl,
-};
+use super::appkit::ns_string_to_string;
+use objc::{class, msg_send, runtime::Object, sel, sel_impl};
 
 pub fn get_network_ssid() -> Option<String> {
     unsafe {
