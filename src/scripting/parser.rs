@@ -4,12 +4,13 @@ use crate::{
         create_capturer,
         pc_common::{get_network_ssid, Event, Window, KEYSTROKES, MOUSE_CLICKS},
     },
-    graphql::{get_network_info, SaveToDb},
+    rest_api::{get_network_info, SaveToDb},
     scripting::ConditionalFn,
 };
 
 use regex::Regex;
-use std::{cmp::PartialOrd, convert::TryInto, sync::atomic::Ordering, time::Duration};
+use serde_json::Value;
+use std::{convert::TryInto, sync::atomic::Ordering, time::Duration};
 
 /// SAFETY: The use of a raw pointer (`*mut VariableMapType`) is safe as long as
 /// you ensure that the value won't get dropped before the execution finishes,
@@ -156,31 +157,44 @@ fn parse_instruction(
         "SAVE_TO_DB" => {
             let function = move || {
                 let map = unsafe { &*variable_map };
+
                 let rule_id = match map.get("RULE_ID") {
                     Some(Variable::RcStr(string)) => (**string).clone(),
                     _ => anyhow::bail!("RULE_ID is not a String"),
                 };
+
                 let rule_body = match map.get("RULE_BODY") {
                     Some(Variable::RcStr(string)) => (**string).clone(),
                     _ => anyhow::bail!("RULE_BODY is not a String"),
                 };
+
                 let seconds_since_last_input = match map.get("SECONDS_SINCE_LAST_INPUT") {
                     Some(Variable::U64(int)) => *int,
-                    _ => anyhow::bail!("SECONDS_SINCE_LAST_INPUT is not a U64"),
+                    Some(s) => {
+                        dbg!(s);
+                        anyhow::bail!("SECONDS_SINCE_LAST_INPUT is not a U64")
+                    }
+                    None => anyhow::bail!("SECONDS_SINCE_LAST_INPUT is not a U64"),
                 };
+
                 let windows: Vec<Window> = match map.get("WINDOWS") {
                     Some(Variable::Vector(vec)) => {
                         let mut windows = vec![];
-                        for variable in vec {
+                        for variable in vec.iter() {
                             let map = match variable {
                                 Variable::Map(map) => map,
                                 _ => anyhow::bail!("Variable is not a Map"),
                             };
-                            windows.push(map.try_into()?);
+                            windows.push((&**map).try_into()?);
                         }
                         windows
                     }
                     _ => anyhow::bail!("WINDOWS is not a Vector"),
+                };
+
+                let screenshots: Option<Box<Vec<Value>>> = match map.get("SCREENSHOTS") {
+                    Some(Variable::SerdeJsonVector(value)) => Some(value.clone()),
+                    _ => None,
                 };
 
                 let event = Event {
@@ -189,6 +203,7 @@ fn parse_instruction(
                         id: rule_id,
                         body: rule_body,
                     }),
+                    screenshots,
                     network: get_network_info().map(|n| Some(n)).unwrap_or_else(|e| {
                         error!("{}", e);
                         None
@@ -197,9 +212,12 @@ fn parse_instruction(
                     mouse: MOUSE_CLICKS.load(Ordering::Relaxed),
                     seconds_since_last_input,
                 };
+
                 KEYSTROKES.store(0, Ordering::SeqCst);
                 MOUSE_CLICKS.store(0, Ordering::SeqCst);
+
                 event.save_to_db()?;
+
                 Ok(())
             };
             Ok(Some(function.into()))
@@ -244,6 +262,78 @@ fn parse_instruction(
                 Ok(())
             };
             Ok(Some(function.into()))
+        }
+        "CAPTURE_SCREEN" => {
+            #[cfg(target_os = "windows")]
+            {
+                use captis::*;
+
+                let variable = line
+                    .get(1)
+                    .map(|s| &s[1..s.len() - 1])
+                    .ok_or_else(|| anyhow!("You haven't provided the screen number to capture"))?;
+
+                let capturer =
+                    init_capturer().ok_or_else(|| anyhow!("Couldn't initiate Screen capturer"))?;
+
+                return match variable {
+                    "ALL" => {
+                        unsafe {
+                            (&mut *variable_map)
+                                .insert("SCREENSHOTS", Variable::SerdeJsonVector(Box::new(vec![])));
+                        }
+                        let function = move || {
+                            let map = unsafe { &mut *variable_map };
+
+                            let images = capturer.capture_all();
+
+                            let mut file_vec = send_screenshots(&images)?;
+
+                            let vec = match map.get_mut("SCREENSHOTS").ok_or_else(|| {
+                                anyhow!("Couldn't get SCREENSHOTS from VariableMap")
+                            })? {
+                                Variable::SerdeJsonVector(vec) => vec,
+                                _ => anyhow::bail!("Variable is not a SerdeJsonVector"),
+                            };
+
+                            vec.append(&mut file_vec);
+
+                            Ok(())
+                        };
+                        Ok(Some(function.into()))
+                    }
+                    _ => {
+                        let index: usize = variable.parse()?;
+                        unsafe {
+                            (&mut *variable_map)
+                                .insert("SCREENSHOTS", Variable::SerdeJsonVector(Box::new(vec![])));
+                        }
+                        let function = move || {
+                            let map = unsafe { &mut *variable_map };
+
+                            let image = capturer.capture(index).ok_or_else(|| {
+                                anyhow!("Couldn't Capture Screen with index {}", index)
+                            })?;
+
+                            let mut file_vec = send_screenshots(&[image])?;
+
+                            let vec = match map.get_mut("SCREENSHOTS").ok_or_else(|| {
+                                anyhow!("Couldn't get SCREENSHOTS from VariableMap")
+                            })? {
+                                Variable::SerdeJsonVector(vec) => vec,
+                                _ => anyhow::bail!("Variable is not a SerdeJsonVector"),
+                            };
+
+                            vec.append(&mut file_vec);
+
+                            Ok(())
+                        };
+
+                        Ok(Some(function.into()))
+                    }
+                };
+            }
+            Ok(None)
         }
         _ => Ok(None),
     }
@@ -773,7 +863,7 @@ fn parse_conditional(
 
                             let mut boolean = false;
 
-                            for variable in vec {
+                            for variable in vec.iter() {
                                 if is_string_first {
                                     if *variable == first {
                                         boolean = true;

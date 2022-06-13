@@ -1,5 +1,6 @@
 use rustc_hash::FxHashMap;
-use std::{cmp::Ordering, fmt, rc::Rc};
+use serde_json::Value;
+use std::{cmp::Ordering, fmt, rc::Rc, sync::Arc};
 
 pub type VariableMapType = FxHashMap<&'static str, Variable>;
 pub type ConditionalFn = Box<dyn FnMut() -> bool>;
@@ -19,11 +20,13 @@ pub enum Variable {
     Int(usize),
     U64(u64),
     Float(f32),
-    RcStr(Rc<String>),
-    StaticStr(&'static str),
     Bool(bool),
-    Vector(Vec<Variable>),
-    Map(VariableMapType),
+    RcStr(Rc<String>),
+    ArcStr(Arc<String>),
+    Vector(Box<Vec<Variable>>),
+    Map(Box<VariableMapType>),
+    SerdeJsonVector(Box<Vec<Value>>),
+    SerdeJson(Box<Value>),
 }
 
 impl std::fmt::Display for Variable {
@@ -34,10 +37,12 @@ impl std::fmt::Display for Variable {
             U64(int) => write!(f, "{}", int),
             Float(float) => write!(f, "{}", float),
             RcStr(string) => write!(f, "{}", *string),
-            StaticStr(string) => write!(f, "{}", string),
+            ArcStr(string) => write!(f, "{}", *string),
             Bool(boolean) => write!(f, "{}", boolean),
             Vector(vec) => write!(f, "{:?}", vec),
             Map(map) => write!(f, "{:?}", map),
+            SerdeJsonVector(value) => write!(f, "{:?}", value),
+            SerdeJson(value) => write!(f, "{:?}", value),
         }
     }
 }
@@ -51,6 +56,12 @@ impl From<&str> for Variable {
 impl From<String> for Variable {
     fn from(string: String) -> Self {
         Self::RcStr(Rc::new(string))
+    }
+}
+
+impl From<Arc<String>> for Variable {
+    fn from(string: Arc<String>) -> Self {
+        Self::ArcStr(string)
     }
 }
 
@@ -78,15 +89,21 @@ impl From<bool> for Variable {
     }
 }
 
+impl From<serde_json::Value> for Variable {
+    fn from(value: serde_json::Value) -> Self {
+        Self::SerdeJson(Box::new(value))
+    }
+}
+
 impl From<VariableMapType> for Variable {
     fn from(variables_map: VariableMapType) -> Self {
-        Self::Map(variables_map)
+        Self::Map(Box::new(variables_map))
     }
 }
 
 impl<V: Into<Variable>> From<Vec<V>> for Variable {
     fn from(vec: Vec<V>) -> Self {
-        Self::Vector(vec.into_iter().map(|v| v.into()).collect())
+        Self::Vector(Box::new(vec.into_iter().map(|v| v.into()).collect()))
     }
 }
 
@@ -107,6 +124,7 @@ impl PartialEq<String> for Variable {
         use Variable::*;
         match self {
             RcStr(string) => **string == *other,
+            ArcStr(string) => **string == *other,
             Int(i) => {
                 let num: usize = match other.parse() {
                     Ok(num) => num,
@@ -128,7 +146,6 @@ impl PartialEq<String> for Variable {
                 };
                 *i == num
             }
-            StaticStr(string) => *string == *other,
             Bool(boolean) => {
                 let boolean = *boolean;
                 if boolean && other == "true" {
@@ -207,13 +224,13 @@ impl Executable for Iterative {
             None => anyhow::bail!("Value with Key {} does not exist", self.key),
         };
 
-        for variable in vec {
+        for variable in vec.iter() {
             let map = match variable {
                 Variable::Map(map) => map,
                 _ => anyhow::bail!("The Value attained with Key {} is not a Map", self.key),
             };
 
-            for (key, variable) in map {
+            for (key, variable) in map.iter() {
                 variable_map.insert(key.clone(), variable.clone());
             }
 

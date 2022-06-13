@@ -1,6 +1,0 @@
-query network($data: String!) {
-  networks(search: $data) {
-    id
-    name
-  }
-}

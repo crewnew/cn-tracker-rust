@@ -11,7 +11,6 @@ extern crate lazy_static;
 extern crate anyhow;
 
 pub mod capture;
-pub mod expand;
-pub mod graphql;
+pub mod rest_api;
 pub mod scripting;
 pub mod util;

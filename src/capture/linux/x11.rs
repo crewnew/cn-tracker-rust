@@ -246,6 +246,7 @@ impl<C: Connection + Send> Capturer for X11Capturer<C> {
             rule: None,
             keyboard: 0,
             mouse: 0,
+            screenshots: None,
             network: None,
             seconds_since_last_input: user_idle::UserIdle::get_time()
                 .map(|e| e.duration())

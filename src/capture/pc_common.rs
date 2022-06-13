@@ -4,8 +4,9 @@ use crate::{
     capture,
     scripting::{Rule, Variable, VariableMapType},
 };
+use serde_json::Value;
 use std::{convert::TryFrom, sync::atomic::AtomicUsize};
-use sysinfo::{NetworkExt, NetworksExt, ProcessExt, System, SystemExt};
+use sysinfo::ProcessExt;
 
 #[cfg(target_os = "linux")]
 pub use capture::linux::network::get_network_ssid;
@@ -29,6 +30,8 @@ pub struct NetworkInfo {
 pub struct Event {
     #[serde(rename = "window_ids")]
     pub windows: Vec<Window>,
+    #[serde(rename = "screenshot_ids")]
+    pub screenshots: Option<Box<Vec<Value>>>,
     #[serde(rename = "rule_id")]
     pub rule: Option<Rule>,
     #[serde(rename = "network_id")]
@@ -58,6 +61,7 @@ impl From<Window> for VariableMapType {
         map.insert("MEMORY", (window.process.memory as usize).into());
         map.insert("STATUS", window.process.status.into());
         map.insert("START_TIME", window.process.start_time.into());
+
         if let Some(cpu_usage) = window.process.cpu_usage {
             map.insert("CPU_USAGE", cpu_usage.into());
         }
