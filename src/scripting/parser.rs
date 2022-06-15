@@ -4,7 +4,7 @@ use crate::{
         create_capturer,
         pc_common::{get_network_ssid, Event, Window, KEYSTROKES, MOUSE_CLICKS},
     },
-    rest_api::{get_network_info, SaveToDb},
+    rest_api::{get_network_info, send_screenshots, SaveToDb},
     scripting::ConditionalFn,
 };
 
@@ -520,26 +520,26 @@ fn parse_conditional(
                 "MATCH" => {
                     let first = line[i - 1];
 
-                    let regex = Regex::new(&first[1..first.len() - 1])?;
-
                     let second = line[i + 1];
 
-                    let is_string_second = is_string(second);
+                    let regex = Regex::new(&second[1..second.len() - 1])?;
 
-                    let second = if is_string_second {
-                        second[1..second.len() - 1].to_owned()
+                    let is_string_first = is_string(first);
+
+                    let first = if is_string_first {
+                        first[1..first.len() - 1].to_owned()
                     } else {
-                        second.to_owned()
+                        first.to_owned()
                     };
 
                     let conditional_fn = Box::new(move || {
-                        if is_string_second {
-                            return regex.is_match(&second);
+                        if is_string_first {
+                            return regex.is_match(&first);
                         }
 
                         let map = unsafe { &*variable_map };
 
-                        if let Some(Variable::RcStr(string)) = map.get(second.as_str()) {
+                        if let Some(Variable::RcStr(string)) = map.get(first.as_str()) {
                             return regex.is_match(string);
                         }
 

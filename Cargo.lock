@@ -770,16 +770,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "78cc372d058dcf6d5ecd98510e7fbc9e5aec4d21de70f65fea8fecebcd881bd4"
 
 [[package]]
-name = "gql_client"
-version = "1.0.1"
-source = "git+https://github.com/Selyatin/gql-client-rs.git#6ade62ce60cdd73f7fc2bee0cca7e0baeeb1a70f"
-dependencies = [
- "reqwest",
- "serde 1.0.137",
- "serde_json",
-]
-
-[[package]]
 name = "h2"
 version = "0.3.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2341,7 +2331,6 @@ dependencies = [
  "enum_dispatch",
  "env_logger",
  "erased-serde",
- "gql_client",
  "hex",
  "image",
  "lazy_static",

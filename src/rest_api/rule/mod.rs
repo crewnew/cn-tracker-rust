@@ -1,12 +1,11 @@
 use super::{ENDPOINT, HTTP_CLIENT};
 use crate::scripting::Rule;
-use gql_client::GraphQLError;
 
 lazy_static! {
     static ref RULES_ENDPOINT: String = format!("{}/items/rules", ENDPOINT.as_str());
 }
 
-pub fn get_rules() -> Result<Vec<Rule>, GraphQLError> {
+pub fn get_rules() -> anyhow::Result<Vec<Rule>> {
     #[derive(Serialize, Deserialize)]
     struct Data {
         data: Vec<Rule>,

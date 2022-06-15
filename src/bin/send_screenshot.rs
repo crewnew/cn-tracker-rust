@@ -2,7 +2,7 @@ fn main() {
     #[cfg(target_os = "windows")]
     {
         use captis::*;
-        use timetrackrs::graphql::send_screenshots;
+        use timetrackrs::rest_api::send_screenshots;
 
         let capturer = init_capturer().unwrap();
 

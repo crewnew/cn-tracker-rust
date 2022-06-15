@@ -31,7 +31,6 @@ user-idle = "0.5.1"
 env_logger = "0.9.0"
 rustc-hash = "1.1.0"
 reqwest = { version = "0.11.10", default-features = false, features = ["json", "blocking", "multipart"] }
-gql_client = {git = "https://github.com/Selyatin/gql-client-rs.git", features = ["blocking"]}
 erased-serde = "0.3.20"
 log = "0.4.17"
 hex = "0.4.3"

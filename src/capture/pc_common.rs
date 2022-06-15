@@ -51,9 +51,11 @@ pub struct Window {
 impl From<Window> for VariableMapType {
     fn from(window: Window) -> Self {
         let mut map = Self::default();
+
         if let Some(title) = window.title {
             map.insert("TITLE", title.into());
         }
+
         map.insert("NAME", window.process.name.into());
         map.insert("CMD", window.process.cmd.into());
         map.insert("EXE", window.process.exe.into());

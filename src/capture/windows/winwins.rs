@@ -2,7 +2,7 @@ use super::super::{
     pc_common::{Event, Process, Window, KEYSTROKES, MOUSE_CLICKS},
     Capturer,
 };
-use crate::{graphql::get_network_info, util};
+use crate::{rest_api::get_network_info, util};
 use anyhow::Context;
 use chrono::Utc;
 use regex::Regex;

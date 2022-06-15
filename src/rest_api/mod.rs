@@ -1,12 +1,8 @@
-
 use lazy_static::lazy_static;
 use reqwest::{
-    blocking::{
-        self,
-    },
+    blocking::{self},
     header::{self, HeaderMap, HeaderValue},
 };
-
 
 lazy_static! {
     static ref ENDPOINT: String = {
