@@ -1,11 +1,12 @@
 use super::{Id, ENDPOINT, HTTP_CLIENT};
 use crate::capture::pc_common::{get_network_ssid, NetworkInfo};
+use std::borrow::Cow;
 
 lazy_static! {
     static ref NETWORKS_ENDPOINT: String = format!("{}/items/networks", ENDPOINT.as_str());
 }
 
-pub fn get_network_info() -> anyhow::Result<NetworkInfo> {
+pub fn get_network_info(ssid: impl Into<String>) -> anyhow::Result<NetworkInfo> {
     #[derive(Debug, Deserialize)]
     struct Data {
         data: Vec<Id>,
@@ -15,7 +16,7 @@ pub fn get_network_info() -> anyhow::Result<NetworkInfo> {
         name: &'a str,
     }
 
-    let ssid = get_network_ssid().ok_or_else(|| anyhow!("Couldn't get Network SSID"))?;
+    let ssid = ssid.into();
 
     debug!("{}", ssid);
 

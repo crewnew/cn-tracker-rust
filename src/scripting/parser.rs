@@ -2,7 +2,7 @@ use super::{Conditional, Executable, Instruction, Iterative, Rule, Variable, Var
 use crate::{
     capture::{
         create_capturer,
-        pc_common::{get_network_ssid, Event, Window, KEYSTROKES, MOUSE_CLICKS},
+        pc_common::{get_network_ssid, Event, NetworkInfo, Window, KEYSTROKES, MOUSE_CLICKS},
     },
     rest_api::{get_network_info, send_screenshots, SaveToDb},
     scripting::ConditionalFn,
@@ -197,17 +197,21 @@ fn parse_instruction(
                     _ => None,
                 };
 
-                let event = Event {
+                let network: Option<NetworkInfo> = match map.get("NETWORK_SSID") {
+                    Some(Variable::RcStr(string)) => {
+                        get_network_info(string.as_str()).map(|s| Some(s))?
+                    }
+                    _ => None,
+                };
+
+                let mut event = Event {
                     windows,
                     rule: Some(Rule {
                         id: rule_id,
                         body: rule_body,
                     }),
+                    network,
                     screenshots,
-                    network: get_network_info().map(|n| Some(n)).unwrap_or_else(|e| {
-                        error!("{}", e);
-                        None
-                    }),
                     keyboard: KEYSTROKES.load(Ordering::Relaxed),
                     mouse: MOUSE_CLICKS.load(Ordering::Relaxed),
                     seconds_since_last_input,
@@ -217,6 +221,11 @@ fn parse_instruction(
                 MOUSE_CLICKS.store(0, Ordering::SeqCst);
 
                 event.save_to_db()?;
+
+                // Clear the screenshots, so that we don't repeat them on the next save.
+                if let Some(screenshots) = &mut event.screenshots {
+                    screenshots.clear();
+                }
 
                 Ok(())
             };

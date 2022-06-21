@@ -28,9 +28,9 @@ pub struct NetworkInfo {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Event {
-    #[serde(rename = "window_ids")]
+    #[serde(rename = "windows_id")]
     pub windows: Vec<Window>,
-    #[serde(rename = "screenshot_ids")]
+    #[serde(rename = "screenshots_id")]
     pub screenshots: Option<Box<Vec<Value>>>,
     #[serde(rename = "rule_id")]
     pub rule: Option<Rule>,
