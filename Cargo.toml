@@ -6,15 +6,15 @@ edition = "2018"
 license = "AGPL-3.0-or-later"
 
 [dependencies]
-anyhow = "1.0.57"
-serde = { version = "1.0.137", features = ["derive"] }
-serde_json = { version = "1.0.81", features = ["preserve_order"] }
-sysinfo = "0.24.2"
+anyhow = "1.0.58"
+serde = { version = "1.0.138", features = ["derive"] }
+serde_json = { version = "1.0.82", features = ["preserve_order"] }
+sysinfo = "0.24.5"
 chrono = { version = "0.4.19", features = ["serde"] }
 dotenv = "0.15.0"
 rand = "0.8.5"
 lazy_static = "1.4.0"
-uuid = { version = "1.1.1", features = ["serde", "v4"] }
+uuid = { version = "1.1.2", features = ["serde", "v4"] }
 regex = "1.5.6"
 battery = "0.7.8"
 os_info = "3.4.0"
@@ -30,18 +30,18 @@ wmi = "0.9.3"
 user-idle = "0.5.1"
 env_logger = "0.9.0"
 rustc-hash = "1.1.0"
-reqwest = { version = "0.11.10", default-features = false, features = ["json", "blocking", "multipart"] }
-erased-serde = "0.3.20"
+reqwest = { version = "0.11.11", default-features = false, features = ["json", "blocking", "multipart"] }
+erased-serde = "0.3.21"
 log = "0.4.17"
 hex = "0.4.3"
-captis = "0.1.2"
+captis = "0.2.0"
 image = { version = "0.24.2", default-features = false, features = ["jpeg"] }
 
 [target.'cfg(windows)'.dependencies]
 winapi = { version = "0.3.9", features = ["std", "impl-default", "windef", "winuser", "processthreadsapi","handleapi", "psapi"] }
 
 [target.'cfg(target_os="linux")'.dependencies]
-x11rb = { version = "0.9.0", features = ["screensaver"] }
+x11rb = { version = "0.10.1", features = ["screensaver"] }
 xcb = "1.1.1"
 nl80211 = {git="https://github.com/Eonm/nl80211", branch="master"}
 notify = "4.0.17"
