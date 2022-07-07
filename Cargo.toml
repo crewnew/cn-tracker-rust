@@ -9,13 +9,13 @@ license = "AGPL-3.0-or-later"
 anyhow = "1.0.58"
 serde = { version = "1.0.138", features = ["derive"] }
 serde_json = { version = "1.0.82", features = ["preserve_order"] }
-sysinfo = "0.24.5"
+sysinfo = "0.24.6"
 chrono = { version = "0.4.19", features = ["serde"] }
 dotenv = "0.15.0"
 rand = "0.8.5"
 lazy_static = "1.4.0"
 uuid = { version = "1.1.2", features = ["serde", "v4"] }
-regex = "1.5.6"
+regex = "1.6.0"
 battery = "0.7.8"
 os_info = "3.4.0"
 enum-utils = "0.1.2"
@@ -34,7 +34,7 @@ reqwest = { version = "0.11.11", default-features = false, features = ["json", "
 erased-serde = "0.3.21"
 log = "0.4.17"
 hex = "0.4.3"
-captis = "0.2.0"
+captis = "0.3.2"
 image = { version = "0.24.2", default-features = false, features = ["jpeg"] }
 
 [target.'cfg(windows)'.dependencies]
