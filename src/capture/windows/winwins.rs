@@ -24,11 +24,15 @@ use winapi::{
     },
 };
 
-pub struct WindowsCapturer {}
+pub struct WindowsCapturer {
+    system: System,
+}
 
 impl WindowsCapturer {
     pub fn init() -> WindowsCapturer {
-        WindowsCapturer {}
+        WindowsCapturer {
+            system: System::new(),
+        }
     }
 }
 
@@ -54,9 +58,14 @@ fn ol(process_id: i64) -> anyhow::Result<Option<WmiInfo>> {
 }
 impl Capturer for WindowsCapturer {
     fn capture(&mut self) -> anyhow::Result<Event> {
-        let focused_window = get_foreground_window().map(|f| get_window_id(f));
+        let mut windows = Vec::with_capacity(1);
+        if let Some(hwnd) = get_foreground_window() {
+            if let Some(window) = map_hwnd(hwnd, &mut self.system) {
+                windows.push(window);
+            }
+        }
         Ok(Event {
-            windows: get_all_windows(true),
+            windows,
             rule: None,
             keyboard: 0,
             mouse: 0,
@@ -201,13 +210,12 @@ pub fn get_window_class_name(hwnd: HWND) -> String {
 }
 
 #[allow(dead_code)]
-pub fn get_all_windows(filter_alt_tab: bool) -> Vec<Window> {
+pub fn get_all_windows(system: &mut System, filter_alt_tab: bool) -> Vec<Window> {
     debug!("getting windows!");
     let mut vec = Vec::new();
-    let mut system = System::new();
     let a = |hwnd| -> EnumResult {
         if !filter_alt_tab || is_alt_tab_window(hwnd) {
-            if let Some(window) = map_hwnd(hwnd, &mut system) {
+            if let Some(window) = map_hwnd(hwnd, system) {
                 vec.push(window);
             }
         } else {

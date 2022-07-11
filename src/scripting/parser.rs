@@ -273,7 +273,7 @@ fn parse_instruction(
             Ok(Some(function.into()))
         }
         "CAPTURE_SCREEN" => {
-            #[cfg(target_os = "windows")]
+            #[cfg(any(target_os = "windows", target_os = "linux"))]
             {
                 use captis::*;
 
@@ -282,8 +282,8 @@ fn parse_instruction(
                     .map(|s| &s[1..s.len() - 1])
                     .ok_or_else(|| anyhow!("You haven't provided the screen number to capture"))?;
 
-                let capturer =
-                    init_capturer().ok_or_else(|| anyhow!("Couldn't initiate Screen capturer"))?;
+                let capturer = init_capturer()
+                    .or_else(|_| Err(anyhow!("Couldn't initiate Screen capturer")))?;
 
                 return match variable {
                     "ALL" => {
@@ -294,7 +294,7 @@ fn parse_instruction(
                         let function = move || {
                             let map = unsafe { &mut *variable_map };
 
-                            let images = capturer.capture_all();
+                            let images = capturer.capture_all()?;
 
                             let mut file_vec = send_screenshots(&images)?;
 
@@ -320,9 +320,7 @@ fn parse_instruction(
                         let function = move || {
                             let map = unsafe { &mut *variable_map };
 
-                            let image = capturer.capture(index).ok_or_else(|| {
-                                anyhow!("Couldn't Capture Screen with index {}", index)
-                            })?;
+                            let image = capturer.capture(index)?;
 
                             let mut file_vec = send_screenshots(&[image])?;
 
@@ -485,6 +483,8 @@ fn parse_conditional(
                 Else => None,
             };
 
+            debug!("Current WORD: {}", word);
+
             match word {
                 "IF" => match first_if_passed {
                     false => first_if_passed = true,
@@ -531,54 +531,70 @@ fn parse_conditional(
 
                     let second = line[i + 1];
 
-                    let regex = Regex::new(&second[1..second.len() - 1])?;
+                    let (is_string_first, first) = transform_str(first);
 
-                    let is_string_first = is_string(first);
+                    let conditional_fn: ConditionalFn = match second {
+                        "IN" => {
+                            let regex_vec = parse_regex_array(line[i + 2])?;
 
-                    let first = if is_string_first {
-                        first[1..first.len() - 1].to_owned()
-                    } else {
-                        first.to_owned()
+                            i += 1;
+
+                            Box::new(move || {
+                                if is_string_first {
+                                    for regex in &regex_vec {
+                                        debug!("{} {:?} {}", first, regex, regex.is_match(&first));
+                                        if regex.is_match(&first) {
+                                            return true;
+                                        }
+                                    }
+                                    return false;
+                                }
+
+                                let map = unsafe { &*variable_map };
+
+                                let execute = |string: &str| -> bool {
+                                    for regex in &regex_vec {
+                                        if regex.is_match(string) {
+                                            return true;
+                                        }
+                                    }
+                                    false
+                                };
+
+                                match map.get(first.as_str()) {
+                                    Some(Variable::RcStr(string)) => execute(string),
+                                    Some(Variable::ArcStr(string)) => execute(string),
+                                    _ => false,
+                                }
+                            })
+                        }
+                        _ => {
+                            let regex = Regex::new(&second[1..second.len() - 1])?;
+
+                            Box::new(move || {
+                                if is_string_first {
+                                    return regex.is_match(&first);
+                                }
+
+                                let map = unsafe { &*variable_map };
+
+                                if let Some(Variable::RcStr(string)) = map.get(first.as_str()) {
+                                    return regex.is_match(string);
+                                }
+
+                                false
+                            })
+                        }
                     };
-
-                    let conditional_fn = Box::new(move || {
-                        if is_string_first {
-                            return regex.is_match(&first);
-                        }
-
-                        let map = unsafe { &*variable_map };
-
-                        if let Some(Variable::RcStr(string)) = map.get(first.as_str()) {
-                            return regex.is_match(string);
-                        }
-
-                        false
-                    });
 
                     if let Some(conditions) = conditions {
                         conditions.push(conditional_fn)
                     }
                 }
                 "BIGGER" => {
-                    let first = line[i - 1];
+                    let (is_string_first, first) = transform_str(line[i - 1]);
 
-                    let is_string_first = is_string(first);
-
-                    let first = if is_string_first {
-                        first[1..first.len() - 1].to_owned()
-                    } else {
-                        first.to_owned()
-                    };
-
-                    let second = line[i + 1];
-
-                    let is_string_second = is_string(second);
-
-                    let second = if is_string_second {
-                        second[1..second.len() - 1].to_owned()
-                    } else {
-                        second.to_owned()
-                    };
+                    let (is_string_second, second) = transform_str(line[i + 1]);
 
                     // -- ToDo
                     // Instead of parsing the string as a number
@@ -654,25 +670,9 @@ fn parse_conditional(
                     }
                 }
                 "LESSER" => {
-                    let first = line[i - 1];
+                    let (is_string_first, first) = transform_str(line[i - 1]);
 
-                    let is_string_first = is_string(first);
-
-                    let first = if is_string_first {
-                        first[1..first.len() - 1].to_owned()
-                    } else {
-                        first.to_owned()
-                    };
-
-                    let second = line[i + 1];
-
-                    let is_string_second = is_string(second);
-
-                    let second = if is_string_second {
-                        second[1..second.len() - 1].to_owned()
-                    } else {
-                        second.to_owned()
-                    };
+                    let (is_string_second, second) = transform_str(line[i + 1]);
 
                     // -- ToDo
                     // Instead of parsing the string as a number
@@ -808,16 +808,14 @@ fn parse_conditional(
 
                     i -= space;
 
-                    let first = line[i].to_owned();
+                    let (is_string_first, first) = transform_str(line[i]);
 
                     i += space + 1;
 
-                    let second = line[i].to_owned();
-
-                    let is_string_first = is_string(&first);
+                    let second = line[i];
 
                     let conditional_fn: ConditionalFn = if second.starts_with('[') {
-                        let vec = parse_array(second);
+                        let vec = parse_array(second)?;
                         Box::new(move || {
                             let mut boolean = false;
 
@@ -857,6 +855,7 @@ fn parse_conditional(
                             boolean
                         })
                     } else {
+                        let second = second.to_owned();
                         Box::new(move || {
                             let map = unsafe { &*variable_map };
 
@@ -950,13 +949,44 @@ fn is_string(string: impl AsRef<str>) -> bool {
     string.starts_with('\"') || string.starts_with('\'')
 }
 
-fn parse_array(string: impl AsRef<str>) -> Vec<String> {
+/// Used to transform a &str into an owned string and remove **"** or **'** signs from the string
+/// if needed and it returns if the value was a string or a reference to the map.
+fn transform_str(string: impl AsRef<str>) -> (bool, String) {
     let string = string.as_ref();
-    string[1..string.len() - 1]
+    let is_string = is_string(string);
+    let string = if is_string {
+        string[1..string.len() - 1].to_owned()
+    } else {
+        string.to_owned()
+    };
+    (is_string, string)
+}
+
+fn is_array(string: impl AsRef<str>) -> bool {
+    let string = string.as_ref();
+    string.starts_with("[") && string.ends_with("]")
+}
+
+fn parse_array(string: impl AsRef<str>) -> anyhow::Result<Vec<String>> {
+    let string = string.as_ref();
+    if !is_array(string) {
+        anyhow::bail!("You have an error in your array syntax: {}", string);
+    }
+    Ok(string[1..string.len() - 1]
         .replace(' ', "")
         .split(',')
         .map(|s| s[1..s.len() - 1].to_owned())
-        .collect()
+        .collect())
+}
+
+fn parse_regex_array(string: impl AsRef<str>) -> Result<Vec<Regex>, regex::Error> {
+    let string = string.as_ref();
+    let mut vec = vec![];
+    for string in string[1..string.len() - 1].replace(' ', "").split(',') {
+        vec.push(Regex::new(&string[1..string.len() - 1])?);
+    }
+
+    Ok(vec)
 }
 
 fn get_word_positions(line: &str) -> Vec<(usize, usize)> {

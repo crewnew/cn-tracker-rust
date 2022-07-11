@@ -12,7 +12,7 @@ use super::{
     peripherals::initiate_event_listeners,
     types::*,
 };
-use crate::{graphql::get_network_info, util};
+use crate::{rest_api::get_network_info, util};
 use anyhow::Context;
 use serde_json::{json, Value as J};
 use std::{
@@ -21,7 +21,7 @@ use std::{
     thread,
     time::Duration,
 };
-use sysinfo::{PidExt, ProcessExt, SystemExt};
+use sysinfo::{PidExt, ProcessExt, System, SystemExt};
 use x11rb::{
     connection::{Connection, RequestConnection},
     protocol::xproto::{get_property, intern_atom, Atom, AtomEnum, ConnectionExt, Window},
@@ -74,6 +74,7 @@ pub struct X11Capturer<C: Connection> {
     conn: C,
     root_window: u32,
     atom_name_map: HashMap<u32, anyhow::Result<String>>,
+    system: System,
 }
 
 impl<C: Connection> X11Capturer<C> {
@@ -105,13 +106,13 @@ pub fn init() -> anyhow::Result<X11Capturer<impl Connection>> {
     Ok(X11Capturer {
         conn,
         root_window,
+        system: System::new(),
         atom_name_map: HashMap::new(),
     })
 }
 
 impl<C: Connection + Send> Capturer for X11Capturer<C> {
     fn capture(&mut self) -> anyhow::Result<Event> {
-        let mut system = sysinfo::System::new();
         let NET_CLIENT_LIST = self.atom("_NET_CLIENT_LIST")?;
         let NET_CURRENT_DESKTOP = self.atom("_NET_CURRENT_DESKTOP")?;
         let NET_DESKTOP_NAMES = self.atom("_NET_DESKTOP_NAMES")?;
@@ -167,6 +168,7 @@ impl<C: Connection + Send> Capturer for X11Capturer<C> {
                 assert!(val.bytes_after == 0);
                 let prop_name = self.atom_name(prop)?;
                 let prop_type = self.atom_name(val.type_)?;
+                debug!("{:?} {:?}", prop_name, prop_type);
                 if prop_name == "_NET_WM_PID" && prop_type == "CARDINAL" {
                     pid = val
                         .value32()
@@ -208,8 +210,8 @@ impl<C: Connection + Send> Capturer for X11Capturer<C> {
             }
 
             let process: Option<Process> = if let Some(pid) = pid {
-                system.refresh_process(sysinfo::Pid::from_u32(pid));
-                if let Some(procinfo) = system.process(sysinfo::Pid::from_u32(pid as u32)) {
+                self.system.refresh_process(sysinfo::Pid::from_u32(pid));
+                if let Some(procinfo) = self.system.process(sysinfo::Pid::from_u32(pid as u32)) {
                     Some(procinfo.into())
                 } else {
                     println!(

@@ -283,7 +283,9 @@ impl Executable for Conditional {
             return Ok(());
         }
 
-        anyhow::bail!("Didn't execute anything.");
+        debug!("Didn't execute anything");
+
+        Ok(())
     }
 }
 
