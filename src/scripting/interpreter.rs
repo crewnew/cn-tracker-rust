@@ -201,8 +201,8 @@ impl Iterative {
         self.key = key;
     }
 
-    pub fn push(&mut self, executable: Box<dyn Executable>) {
-        self.executables.push(executable);
+    pub fn push(&mut self, executable: impl Into<Box<dyn Executable>>) {
+        self.executables.push(executable.into());
     }
 }
 
@@ -214,6 +214,7 @@ impl From<Iterative> for Box<dyn Executable> {
 
 impl Executable for Iterative {
     fn execute(&mut self) -> anyhow::Result<()> {
+        debug!("Executing");
         let variable_map = unsafe { &mut *self.variable_map };
 
         let vec = match unsafe { &mut *self.variable_map }.get(self.key.as_str()) {
@@ -224,7 +225,7 @@ impl Executable for Iterative {
             None => anyhow::bail!("Value with Key {} does not exist", self.key),
         };
 
-        for variable in vec.iter() {
+        for (i, variable) in vec.iter().enumerate() {
             let map = match variable {
                 Variable::Map(map) => map,
                 _ => anyhow::bail!("The Value attained with Key {} is not a Map", self.key),

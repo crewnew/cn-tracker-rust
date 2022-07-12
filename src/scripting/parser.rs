@@ -353,7 +353,7 @@ fn parse_iterator(
     line_pos: &mut usize,
     variable_map: *mut VariableMapType,
 ) -> anyhow::Result<Iterative> {
-    let mut iterative = Iterative::new("".into(), variable_map);
+    let mut iterative = Iterative::new("".to_owned(), variable_map);
 
     let mut first_iterative_passed = false;
 
@@ -378,16 +378,15 @@ fn parse_iterator(
 
                             iterative.change_key(key.to_string());
                         }
-                        true => {
-                            iterative.push(parse_iterator(lines, line_pos, variable_map)?.into())
-                        }
+                        true => iterative.push(parse_iterator(lines, line_pos, variable_map)?),
                     };
                 }
-                "IF" => iterative.push(parse_conditional(lines, line_pos, variable_map)?.into()),
+                "IF" => iterative.push(parse_conditional(lines, line_pos, variable_map)?),
                 "END" => return Ok(iterative),
                 _ => {
                     if let Some(instruction) = parse_instruction(line, variable_map)? {
-                        iterative.push(instruction.into());
+                        iterative.push(instruction);
+                        break;
                     }
                 }
             };
