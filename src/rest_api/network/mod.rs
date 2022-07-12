@@ -1,6 +1,5 @@
 use super::{Id, ENDPOINT, HTTP_CLIENT};
-use crate::capture::pc_common::{NetworkInfo};
-
+use crate::capture::pc_common::NetworkInfo;
 
 lazy_static! {
     static ref NETWORKS_ENDPOINT: String = format!("{}/items/networks", ENDPOINT.as_str());

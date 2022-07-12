@@ -225,7 +225,7 @@ impl Executable for Iterative {
             None => anyhow::bail!("Value with Key {} does not exist", self.key),
         };
 
-        for (i, variable) in vec.iter().enumerate() {
+        for (_i, variable) in vec.iter().enumerate() {
             let map = match variable {
                 Variable::Map(map) => map,
                 _ => anyhow::bail!("The Value attained with Key {} is not a Map", self.key),
