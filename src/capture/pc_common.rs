@@ -56,7 +56,7 @@ impl From<Window> for VariableMapType {
             map.insert("TITLE", title.into());
         }
 
-        map.insert("NAME", window.process.name.into());
+        map.insert("PROCESS_NAME", window.process.name.into());
         map.insert("CMD", window.process.cmd.into());
         map.insert("EXE", window.process.exe.into());
         map.insert("CWD", window.process.cwd.into());

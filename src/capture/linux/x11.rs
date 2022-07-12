@@ -94,25 +94,32 @@ impl<C: Connection> X11Capturer<C> {
             Ok(ok) => Ok(ok.clone()),
         }
     }
-}
 
-pub fn init() -> anyhow::Result<X11Capturer<impl Connection>> {
-    let (conn, screen_num) = x11rb::connect(None)?;
-    let screen = &conn.setup().roots[screen_num];
-    let root_window = screen.root;
-    if let Err(err) = initiate_event_listeners() {
-        error!("{}", err);
+    fn get_focused_window(&self) -> anyhow::Result<u32> {
+        let NET_ACTIVE_WINDOW = self.atom("_NET_ACTIVE_WINDOW")?;
+        let window: Atom = AtomEnum::WINDOW.into();
+        let active_window = self
+            .conn
+            .get_property(false, self.root_window, NET_ACTIVE_WINDOW, window, 0, 1)?
+            .reply()?;
+
+        if active_window.format == 32 && active_window.length == 1 {
+            Ok(unsafe {
+                active_window
+                    .value32()
+                    .unwrap_unchecked()
+                    .next()
+                    .ok_or_else(|| anyhow!("Couldn't get focused Window"))?
+            })
+        } else {
+            Ok(self.conn.get_input_focus()?.reply()?.focus)
+        }
     }
-    Ok(X11Capturer {
-        conn,
-        root_window,
-        system: System::new(),
-        atom_name_map: HashMap::new(),
-    })
-}
 
-impl<C: Connection + Send> Capturer for X11Capturer<C> {
-    fn capture(&mut self) -> anyhow::Result<Event> {
+    #[allow(dead_code)]
+    fn get_all_windows(&self) -> anyhow::Result<Event> {
+        // Code for capturing all windows
+        /*
         let NET_CLIENT_LIST = self.atom("_NET_CLIENT_LIST")?;
         let NET_CURRENT_DESKTOP = self.atom("_NET_CURRENT_DESKTOP")?;
         let NET_DESKTOP_NAMES = self.atom("_NET_DESKTOP_NAMES")?;
@@ -135,6 +142,8 @@ impl<C: Connection + Send> Capturer for X11Capturer<C> {
             NET_DESKTOP_NAMES,
         )?);
 
+        debug!("{}", self.get_focused_window()?);
+
         let focus = self.conn.get_input_focus()?.reply()?.focus;
 
         let mut windows = get_property32(&self.conn, self.root_window, NET_CLIENT_LIST)?;
@@ -144,7 +153,8 @@ impl<C: Connection + Send> Capturer for X11Capturer<C> {
         let mut windows_data = vec![];
 
         if !windows.contains(&focus) {
-            println!("Focussed thing is not in window list!!");
+            debug!("{:?}", windows);
+            debug!("Focussed thing ({}) is not in window list!!", focus);
         }
 
         for window in windows {
@@ -168,7 +178,6 @@ impl<C: Connection + Send> Capturer for X11Capturer<C> {
                 assert!(val.bytes_after == 0);
                 let prop_name = self.atom_name(prop)?;
                 let prop_type = self.atom_name(val.type_)?;
-                debug!("{:?} {:?}", prop_name, prop_type);
                 if prop_name == "_NET_WM_PID" && prop_type == "CARDINAL" {
                     pid = val
                         .value32()
@@ -225,12 +234,11 @@ impl<C: Connection + Send> Capturer for X11Capturer<C> {
             } else {
                 None
             };
-
-            let geo = self.conn.get_geometry(window)?.reply()?;
-            let coords = self
-                .conn
-                .translate_coordinates(window, self.root_window, 0, 0)?
-                .reply()?;
+            /*let geo = self.conn.get_geometry(window)?.reply()?;*/
+            /*let coords = self
+            .conn
+            .translate_coordinates(window, self.root_window, 0, 0)?
+            .reply()?;*/
 
             if let Some(process) = process {
                 windows_data.push(pc_common::Window {
@@ -239,12 +247,84 @@ impl<C: Connection + Send> Capturer for X11Capturer<C> {
                 });
             }
         }
-        let xscreensaver =
-            x11rb::protocol::screensaver::query_info(&self.conn, self.root_window)?.reply()?;
+        */
+        /*let xscreensaver =
+        x11rb::protocol::screensaver::query_info(&self.conn, self.root_window)?.reply()?;*/
         // see XScreenSaverQueryInfo at https://linux.die.net/man/3/xscreensaverunsetattributes
 
+        todo!()
+    }
+}
+
+pub fn init() -> anyhow::Result<X11Capturer<impl Connection>> {
+    let (conn, screen_num) = x11rb::connect(None)?;
+    let screen = &conn.setup().roots[screen_num];
+    let root_window = screen.root;
+    if let Err(err) = initiate_event_listeners() {
+        error!("{}", err);
+    }
+    Ok(X11Capturer {
+        conn,
+        root_window,
+        system: System::new(),
+        atom_name_map: HashMap::new(),
+    })
+}
+
+impl<C: Connection + Send> Capturer for X11Capturer<C> {
+    fn capture(&mut self) -> anyhow::Result<Event> {
+        let NET_WM_PID = self.atom("_NET_WM_PID")?;
+        let NET_WM_NAME = self.atom("_NET_WM_NAME")?;
+
+        let mut windows: Vec<pc_common::Window> = Vec::with_capacity(1);
+
+        let window = self.get_focused_window()?;
+
+        debug!("Focused Window: {}", window);
+
+        let window_title = self
+            .conn
+            .get_property(false, window, NET_WM_NAME, AtomEnum::ANY, 0, u32::MAX)?
+            .reply()?;
+
+        let window_title = if window_title.length > 0 {
+            Some(String::from_utf8(window_title.value)?)
+        } else {
+            None
+        };
+
+        debug!("Focused Window Title: {:?}", window_title);
+
+        let pid = self
+            .conn
+            .get_property(false, window, NET_WM_PID, AtomEnum::CARDINAL, 0, u32::MAX)?
+            .reply()?;
+
+        let pid: u32 = pid
+            .value32()
+            .ok_or_else(|| anyhow!("Couldn't get value32 of Window PID"))?
+            .next()
+            .ok_or_else(|| anyhow!("Couldn't get Window PID"))?;
+
+        debug!("Window PID: {}", pid);
+
+        let pid = sysinfo::Pid::from_u32(pid);
+
+        self.system.refresh_process(pid);
+
+        let process: Process = self
+            .system
+            .process(pid)
+            .ok_or_else(|| anyhow!("Couldn't find Process with PID {}", pid))?
+            .into();
+
+        windows.push(pc_common::Window {
+            title: window_title,
+            process,
+        });
+
         let data = Event {
-            windows: windows_data,
+            windows,
             rule: None,
             keyboard: 0,
             mouse: 0,

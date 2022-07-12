@@ -1,3 +1,5 @@
+#[macro_use]
+extern crate log;
 use rustc_hash::FxHashMap;
 use std::{sync::Arc, thread};
 use timetrackrs::{
@@ -51,7 +53,7 @@ fn main() {
                 thread::sleep(timeout_duration);
                 for executable in &mut executables {
                     if let Err(err) = executable.execute() {
-                        println!("{}", err);
+                        error!("{}", err);
                     }
                 }
             }

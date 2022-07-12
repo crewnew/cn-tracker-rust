@@ -122,6 +122,7 @@ fn parse_instruction(
     let word = line[0];
     match word {
         "PRINT" => {
+            debug!("Parsing PRINT Statement");
             let word = line[1];
             let is_string = is_string(word);
 
@@ -155,6 +156,7 @@ fn parse_instruction(
             Ok(Some(function.into()))
         }
         "SAVE_TO_DB" => {
+            debug!("Parsing SAVE_TO_DB Statement");
             let function = move || {
                 let map = unsafe { &*variable_map };
 
