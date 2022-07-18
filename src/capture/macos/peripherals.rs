@@ -11,24 +11,26 @@ use std::sync::atomic::Ordering;
 /// Captures Keystrokes and Mouse Clicks, then increments `KEYSTROKES`/`MOUSE_CLICKS`.
 pub fn capture_peripherals() {
     unsafe {
-        let current = CFRunLoop::get_current();
+        loop {
+            let current = CFRunLoop::get_current();
 
-        let event_tap = CGEventTap::new(
-            CGEventTapLocation::Session,
-            CGEventTapPlacement::HeadInsertEventTap,
-            CGEventTapOptions::Default,
-            vec![KeyDown, LeftMouseDown, RightMouseDown],
-            callback,
-        )
-        .unwrap();
+            let event_tap = CGEventTap::new(
+                CGEventTapLocation::Session,
+                CGEventTapPlacement::HeadInsertEventTap,
+                CGEventTapOptions::Default,
+                vec![KeyDown, LeftMouseDown, RightMouseDown],
+                callback,
+            )
+            .unwrap();
 
-        let loop_source = event_tap.mach_port.create_runloop_source(0).unwrap();
+            let loop_source = event_tap.mach_port.create_runloop_source(0).unwrap();
 
-        current.add_source(&loop_source, kCFRunLoopCommonModes);
+            current.add_source(&loop_source, kCFRunLoopCommonModes);
 
-        event_tap.enable();
+            event_tap.enable();
 
-        CFRunLoop::run_current();
+            CFRunLoop::run_current();
+        }
     }
 }
 

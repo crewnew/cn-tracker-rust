@@ -1,6 +1,6 @@
 use super::{
     super::{
-        pc_common::{Event, Window},
+        pc_common::{Event, Process, Window},
         Capturer,
     },
     peripherals::capture_peripherals,
@@ -21,8 +21,11 @@ use core_foundation::{
 use core_graphics::window::{
     kCGNullWindowID, kCGWindowListOptionOnScreenOnly, CGWindowListCopyWindowInfo,
 };
-use objc::{msg_send, runtime::Object, sel, sel_impl};
-use std::time::Duration;
+use objc::{class, msg_send, runtime::Object, sel, sel_impl};
+use std::{
+    sync::atomic::{AtomicI32, Ordering},
+    time::Duration,
+};
 
 use std::{
     ffi::{c_void, CStr},
@@ -30,22 +33,73 @@ use std::{
 };
 use sysinfo::{Pid, System, SystemExt};
 
+static FRONTMOST_APPLICATION_PID: AtomicI32 = AtomicI32::new(0);
+
 pub struct MacOSCapturer {
     accessibility_permission: bool,
+    system: System,
 }
 
 impl MacOSCapturer {
     pub fn init() -> MacOSCapturer {
         let accessibility_permission = unsafe { check_accessibility_permission() };
+
         thread::spawn(capture_peripherals);
+
         MacOSCapturer {
             accessibility_permission,
+            system: System::new(),
         }
+    }
+
+    pub unsafe fn get_focused_window(&mut self) -> Option<Window> {
+        let pid = FRONTMOST_APPLICATION_PID.load(Ordering::Relaxed);
+
+        debug!("Frontmost Application PID: {}", pid);
+
+        let sysinfo_pid = Pid::from(pid);
+
+        self.system.refresh_process(sysinfo_pid);
+
+        let process: Process = self.system.process(sysinfo_pid)?.into();
+
+        let app_ref = AXUIElementCreateApplication(pid);
+
+        let mut title: Option<String> = None;
+
+        let mut ax_element_ref: *const c_void = std::ptr::null();
+
+        if AXUIElementCopyAttributeValue(
+            app_ref,
+            CFString::from_static_string(kAXFocusedWindowAttribute).as_concrete_TypeRef(),
+            &mut ax_element_ref,
+        ) == kAXErrorSuccess
+        {
+            let mut cf_string: *const c_void = std::ptr::null();
+
+            if AXUIElementCopyAttributeValue(
+                ax_element_ref as *mut _,
+                CFString::from_static_string(kAXTitleAttribute).as_concrete_TypeRef(),
+                &mut cf_string,
+            ) == kAXErrorSuccess
+            {
+                let string = CFString::from_void(cf_string).to_string();
+
+                title = Some(string);
+
+                CFRelease(cf_string);
+            }
+            CFRelease(ax_element_ref);
+        }
+
+        CFRelease(app_ref as *const _);
+
+        Some(Window { title, process })
     }
 
     /// Gets all currently running apps that may have UIs and are visible in the dock.
     /// Reference: https://developer.apple.com/documentation/appkit/nsapplicationactivationpolicy?language=objc
-    pub fn get_windows(&mut self) -> Vec<Window> {
+    pub unsafe fn get_windows(&mut self) -> Vec<Window> {
         let MacOSCapturer {
             accessibility_permission,
             ..
@@ -53,78 +107,74 @@ impl MacOSCapturer {
 
         let mut windows: Vec<Window> = vec![];
 
-        let mut system = System::new();
+        let cf_array: ItemRef<CFArray<CFDictionary<CFStringRef, *const c_void>>> =
+            CFArray::from_void(CGWindowListCopyWindowInfo(
+                kCGWindowListOptionOnScreenOnly,
+                kCGNullWindowID,
+            ) as *const _);
 
-        unsafe {
-            let cf_array: ItemRef<CFArray<CFDictionary<CFStringRef, *const c_void>>> =
-                CFArray::from_void(CGWindowListCopyWindowInfo(
-                    kCGWindowListOptionOnScreenOnly,
-                    kCGNullWindowID,
-                ) as *const _);
+        for window in cf_array.iter() {
+            let (keys, values) = window.get_keys_and_values();
 
-            for window in cf_array.iter() {
-                let (keys, values) = window.get_keys_and_values();
+            let mut pid: Option<i32> = None;
 
-                let mut pid: Option<i32> = None;
+            for i in 0..keys.len() {
+                let key = CFStringGetCStringPtr(keys[i] as _, kCFStringEncodingUTF8);
 
-                for i in 0..keys.len() {
-                    let key = CFStringGetCStringPtr(keys[i] as _, kCFStringEncodingUTF8);
+                let key = CStr::from_ptr(key).to_str().unwrap();
 
-                    let key = CStr::from_ptr(key).to_str().unwrap();
+                match key {
+                    "kCGWindowOwnerPID" => {
+                        pid = CFNumber::from_void(values[i]).to_i32();
+                    }
+                    _ => (),
+                };
+            }
 
-                    match key {
-                        "kCGWindowOwnerPID" => {
-                            pid = CFNumber::from_void(values[i]).to_i32();
-                        }
-                        _ => (),
-                    };
-                }
+            if let Some(pid) = pid {
+                let sysinfo_pid = Pid::from(pid);
+                self.system.refresh_process(sysinfo_pid);
+                if let Some(process) = self.system.process(sysinfo_pid) {
+                    let mut title: Option<String> = None;
 
-                if let Some(pid) = pid {
-                    let sysinfo_pid = Pid::from(pid);
-                    system.refresh_process(sysinfo_pid);
-                    if let Some(process) = system.process(sysinfo_pid) {
-                        let mut title: Option<String> = None;
+                    if accessibility_permission {
+                        let app_ref = AXUIElementCreateApplication(pid);
 
-                        if accessibility_permission {
-                            let app_ref = AXUIElementCreateApplication(pid);
+                        let mut ax_element_ref: *const c_void = std::ptr::null();
 
-                            let mut ax_element_ref: *const c_void = std::ptr::null();
+                        if AXUIElementCopyAttributeValue(
+                            app_ref,
+                            CFString::from_static_string(kAXFocusedWindowAttribute)
+                                .as_concrete_TypeRef(),
+                            &mut ax_element_ref,
+                        ) == kAXErrorSuccess
+                        {
+                            let mut cf_string: *const c_void = std::ptr::null();
 
                             if AXUIElementCopyAttributeValue(
-                                app_ref,
-                                CFString::from_static_string(kAXFocusedWindowAttribute)
+                                ax_element_ref as *mut _,
+                                CFString::from_static_string(kAXTitleAttribute)
                                     .as_concrete_TypeRef(),
-                                &mut ax_element_ref,
+                                &mut cf_string,
                             ) == kAXErrorSuccess
                             {
-                                let mut cf_string: *const c_void = std::ptr::null();
+                                let string = CFString::from_void(cf_string).to_string();
 
-                                if AXUIElementCopyAttributeValue(
-                                    ax_element_ref as *mut _,
-                                    CFString::from_static_string(kAXTitleAttribute)
-                                        .as_concrete_TypeRef(),
-                                    &mut cf_string,
-                                ) == kAXErrorSuccess
-                                {
-                                    let string = CFString::from_void(cf_string).to_string();
+                                title = Some(string);
 
-                                    title = Some(string);
-
-                                    CFRelease(cf_string);
-                                }
-                                CFRelease(ax_element_ref);
+                                CFRelease(cf_string);
                             }
-                            CFRelease(app_ref as *const _);
+                            CFRelease(ax_element_ref);
                         }
-
-                        let macos_window = Window {
-                            title,
-                            process: process.into(),
-                        };
-
-                        windows.push(macos_window);
+                        CFRelease(app_ref as *const _);
                     }
+
+                    let macos_window = Window {
+                        title,
+                        process: process.into(),
+                    };
+
+                    windows.push(macos_window);
                 }
             }
         }
@@ -135,7 +185,13 @@ impl MacOSCapturer {
 
 impl Capturer for MacOSCapturer {
     fn capture(&mut self) -> anyhow::Result<Event> {
-        let windows = self.get_windows();
+        let mut windows = Vec::with_capacity(1);
+
+        unsafe {
+            if let Some(window) = self.get_focused_window() {
+                windows.push(window);
+            }
+        }
 
         Ok(Event {
             windows,
@@ -170,6 +226,36 @@ unsafe fn check_accessibility_permission() -> bool {
         AXIsProcessTrustedWithOptions(dict.into_untyped().to_void() as *const _);
 
     app_has_permissions
+}
+
+pub unsafe fn update_frontmost_application_pid() {
+    run_loop();
+
+    let pid = get_frontmost_application_pid();
+
+    FRONTMOST_APPLICATION_PID.store(pid, Ordering::Relaxed);
+}
+
+unsafe fn get_frontmost_application_pid() -> i32 {
+    let shared_workspace: *mut Object = msg_send![class!(NSWorkspace), sharedWorkspace];
+
+    let frontmost_applicaiton: *mut Object = msg_send![shared_workspace, frontmostApplication];
+
+    let pid: i32 = msg_send![frontmost_applicaiton, processIdentifier];
+
+    pid
+}
+
+/// Run this function before trying to access shared data outside of this process's context,
+/// so that you synchronize and get access to the latest available data.
+unsafe fn run_loop() {
+    debug!("Running Run Loop");
+
+    let run_loop: *mut Object = msg_send![class!(NSRunLoop), mainRunLoop];
+
+    let date: *mut Object = msg_send![class!(NSDate), dateWithTimeIntervalSinceNow:0];
+
+    let _: () = msg_send![run_loop, runUntilDate: date];
 }
 
 /// Frees any Objects

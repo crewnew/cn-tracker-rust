@@ -1,7 +1,7 @@
 #[macro_use]
 extern crate log;
 use rustc_hash::FxHashMap;
-use std::{sync::Arc, thread};
+use std::{sync::Arc, thread, time::Duration};
 use timetrackrs::{
     capture::capture_peripherals, rest_api::get_rules, scripting::*, util::get_os_info,
 };
@@ -61,7 +61,23 @@ fn main() {
         join_handles.push(handle);
     }
 
-    for handle in join_handles {
-        handle.join().unwrap();
+    let join_thread = thread::spawn(move || {
+        for handle in join_handles {
+            handle.join().unwrap();
+        }
+    });
+
+    #[cfg(target_os = "macos")]
+    {
+        // Loop for updating the frontmostApplication PID
+        use timetrackrs::capture::macos::appkit::update_frontmost_application_pid;
+        while !join_thread.is_finished() {
+            unsafe {
+                update_frontmost_application_pid();
+            }
+            thread::sleep(Duration::from_secs(1));
+        }
     }
+
+    join_thread.join().unwrap();
 }
