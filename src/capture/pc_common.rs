@@ -79,7 +79,7 @@ impl TryFrom<&VariableMapType> for Window {
             None => None,
             _ => anyhow::bail!("TITLE is not a String"),
         };
-        let name = match variable_map.get("NAME") {
+        let name = match variable_map.get("PROCESS_NAME") {
             Some(Variable::RcStr(string)) => (**string).clone(),
             _ => anyhow::bail!("NAME is not a String"),
         };

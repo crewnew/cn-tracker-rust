@@ -9,14 +9,19 @@ lazy_static! {
         let mut args = std::env::args();
         args.next();
         args.next()
-            .unwrap_or_else(|| "http://localhost:8055".to_owned())
+            .unwrap_or_else(|| "http://localhost:8080/api/rest".to_owned())
     };
     static ref HTTP_CLIENT: blocking::Client = {
         let mut headers = HeaderMap::new();
         headers.insert(
-            header::AUTHORIZATION,
-            HeaderValue::from_static("Bearer admin_token"),
+            "X-Hasura-Admin-Secret",
+            HeaderValue::from_static("myadminsecret"),
         );
+        headers.insert(
+            "X-Hasura-User-Id",
+            HeaderValue::from_static("9c68f86f-c5a5-4b3e-a317-466c6bafcc42"),
+        );
+        headers.insert("X-Hasura-Role", HeaderValue::from_static("user"));
         blocking::Client::builder()
             .default_headers(headers)
             .build()

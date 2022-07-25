@@ -4,7 +4,7 @@ use super::{SaveToDb, ENDPOINT, HTTP_CLIENT};
 use crate::capture::pc_common::Event;
 
 lazy_static! {
-    static ref EVENTS_ENDPOINT: String = format!("{}/items/events", ENDPOINT.as_str());
+    static ref EVENTS_ENDPOINT: String = format!("{}/user/event", ENDPOINT.as_str());
 }
 
 impl SaveToDb for Event {
