@@ -22,7 +22,7 @@ These statements are meant to be used with an `IF` or `ELSEIF` statement.
 - `LESSER` -> Used to see if a value is lesser than the other.
 - `EQ` -> Used to see if a value is equal to the other.
 - `IN` -> Used to see if a value is inside a list.
-- `MATCH` `Regex` -> Used to execute a regex on a variable.
+- `MATCH` -> Used to execute a regex on a variable.
 
 ## Get Statements
 
@@ -52,11 +52,15 @@ END
 ITERATE WINDOWS
   PRINT TITLE
 
-  IF TITLE EQ "some title"
+  IF TITLE MATCH "Brave"
     PRINT "IF statement executed"
 
     ELSEIF TITLE EQ "some other title"
       PRINT "ELSEIF statement executed"
+    END
+
+    ELSEIF TITLE MATCH IN ["regex1", "regex2", "regex3"]
+      PRINT "ELSEIF MATCH IN statement executed"
     END
 
     ELSE
