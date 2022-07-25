@@ -42,8 +42,6 @@ pub fn get_network_info(ssid: impl Into<String>) -> anyhow::Result<NetworkInfo> 
 
     let mut networks = HTTP_CLIENT.get(url).send()?.json::<Data>()?.ssids;
 
-    debug!("{:?}", networks);
-
     if networks.is_empty() {
         let payload = UserSsid {
             argument: SsidWrapper {
@@ -56,8 +54,6 @@ pub fn get_network_info(ssid: impl Into<String>) -> anyhow::Result<NetworkInfo> 
                 },
             },
         };
-
-        debug!("Payload: {}", serde_json::to_string(&payload)?);
 
         let id = HTTP_CLIENT
             .post(USER_SSID_ENDPOINT.as_str())

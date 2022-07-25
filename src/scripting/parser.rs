@@ -482,8 +482,6 @@ fn parse_conditional(
                 Else => None,
             };
 
-            debug!("Current WORD: {}", word);
-
             match word {
                 "IF" => match first_if_passed {
                     false => first_if_passed = true,
