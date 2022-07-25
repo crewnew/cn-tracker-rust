@@ -275,74 +275,72 @@ fn parse_instruction(
             Ok(Some(function.into()))
         }
         "CAPTURE_SCREEN" => {
-            #[cfg(any(target_os = "windows", target_os = "linux"))]
-            {
-                use captis::*;
+            use captis::*;
 
-                let variable = line
-                    .get(1)
-                    .map(|s| &s[1..s.len() - 1])
-                    .ok_or_else(|| anyhow!("You haven't provided the screen number to capture"))?;
+            let variable = line
+                .get(1)
+                .map(|s| &s[1..s.len() - 1])
+                .ok_or_else(|| anyhow!("You haven't provided the screen number to capture"))?;
 
-                let capturer = init_capturer()
-                    .or_else(|_| Err(anyhow!("Couldn't initiate Screen capturer")))?;
+            let capturer =
+                init_capturer().or_else(|_| Err(anyhow!("Couldn't initiate Screen capturer")))?;
 
-                return match variable {
-                    "ALL" => {
-                        unsafe {
-                            (&mut *variable_map)
-                                .insert("SCREENSHOTS", Variable::SerdeJsonVector(Box::new(vec![])));
-                        }
-                        let function = move || {
-                            let map = unsafe { &mut *variable_map };
-
-                            let images = capturer.capture_all()?;
-
-                            let mut file_vec = send_screenshots(&images)?;
-
-                            let vec = match map.get_mut("SCREENSHOTS").ok_or_else(|| {
-                                anyhow!("Couldn't get SCREENSHOTS from VariableMap")
-                            })? {
-                                Variable::SerdeJsonVector(vec) => vec,
-                                _ => anyhow::bail!("Variable is not a SerdeJsonVector"),
-                            };
-
-                            vec.append(&mut file_vec);
-
-                            Ok(())
-                        };
-                        Ok(Some(function.into()))
+            return match variable {
+                "ALL" => {
+                    unsafe {
+                        (&mut *variable_map)
+                            .insert("SCREENSHOTS", Variable::SerdeJsonVector(Box::new(vec![])));
                     }
-                    _ => {
-                        let index: usize = variable.parse()?;
-                        unsafe {
-                            (&mut *variable_map)
-                                .insert("SCREENSHOTS", Variable::SerdeJsonVector(Box::new(vec![])));
-                        }
-                        let function = move || {
-                            let map = unsafe { &mut *variable_map };
+                    let function = move || {
+                        let map = unsafe { &mut *variable_map };
 
-                            let image = capturer.capture(index)?;
+                        let images = capturer.capture_all()?;
 
-                            let mut file_vec = send_screenshots(&[image])?;
+                        let mut file_vec = send_screenshots(&images)?;
 
-                            let vec = match map.get_mut("SCREENSHOTS").ok_or_else(|| {
-                                anyhow!("Couldn't get SCREENSHOTS from VariableMap")
-                            })? {
-                                Variable::SerdeJsonVector(vec) => vec,
-                                _ => anyhow::bail!("Variable is not a SerdeJsonVector"),
-                            };
-
-                            vec.append(&mut file_vec);
-
-                            Ok(())
+                        let vec = match map
+                            .get_mut("SCREENSHOTS")
+                            .ok_or_else(|| anyhow!("Couldn't get SCREENSHOTS from VariableMap"))?
+                        {
+                            Variable::SerdeJsonVector(vec) => vec,
+                            _ => anyhow::bail!("Variable is not a SerdeJsonVector"),
                         };
 
-                        Ok(Some(function.into()))
+                        vec.append(&mut file_vec);
+
+                        Ok(())
+                    };
+                    Ok(Some(function.into()))
+                }
+                _ => {
+                    let index: usize = variable.parse()?;
+                    unsafe {
+                        (&mut *variable_map)
+                            .insert("SCREENSHOTS", Variable::SerdeJsonVector(Box::new(vec![])));
                     }
-                };
-            }
-            Ok(None)
+                    let function = move || {
+                        let map = unsafe { &mut *variable_map };
+
+                        let image = capturer.capture(index)?;
+
+                        let mut file_vec = send_screenshots(&[image])?;
+
+                        let vec = match map
+                            .get_mut("SCREENSHOTS")
+                            .ok_or_else(|| anyhow!("Couldn't get SCREENSHOTS from VariableMap"))?
+                        {
+                            Variable::SerdeJsonVector(vec) => vec,
+                            _ => anyhow::bail!("Variable is not a SerdeJsonVector"),
+                        };
+
+                        vec.append(&mut file_vec);
+
+                        Ok(())
+                    };
+
+                    Ok(Some(function.into()))
+                }
+            };
         }
         _ => Ok(None),
     }
@@ -405,7 +403,7 @@ fn parse_conditional(
     line_pos: &mut usize,
     variable_map: *mut VariableMapType,
 ) -> anyhow::Result<Conditional> {
-    #[derive(Debug)]
+    #[derive(Debug, Eq, PartialEq)]
     enum Condition {
         If,
         ElseIf,
@@ -506,7 +504,12 @@ fn parse_conditional(
                         };
                     }
                 },
-                "END" => return Ok(conditional),
+                "END" => {
+                    if condition == If {
+                        return Ok(conditional);
+                    }
+                    condition = If;
+                }
                 "ELSEIF" => {
                     else_if_conditional_pos = conditional
                         .else_if_conditionals
