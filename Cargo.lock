@@ -185,9 +185,9 @@ checksum = "f0b3de4a0c5e67e16066a0715723abd91edc2f9001d09c46e1dca929351e130e"
 
 [[package]]
 name = "captis"
-version = "0.4.2"
+version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "881b46a8ce4addb80021b99ae44930edb505dfed64e6d49e35e8f61d9e3aaa98"
+checksum = "977942b530f5e9262722d74191febdace3a4c241f4ea90a06baadca6a4960344"
 dependencies = [
  "core-graphics",
  "image",
