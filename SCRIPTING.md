@@ -12,6 +12,8 @@ The essential principle of the language is that you use the **Get Statements** t
 - `ITERATE` -> Used to iterate over data with multiple elements and execute script for each element.
 - `SAVE_TO_DB` -> Used to save all the data that's been accessed through the **Get Statements** to the database.
 
+If you wanna pass a variable that doesn't change such as in the `IF KEYSTROKES BIGGER "10"`, you simply need to wrap your variable with `'` or `"` just like `"10"`.
+
 ## Conditional Statements
 
 These statements are meant to be used with an `IF` or `ELSEIF` statement.
