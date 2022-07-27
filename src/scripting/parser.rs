@@ -312,8 +312,7 @@ fn parse_instruction(
                     };
                     Ok(Some(function.into()))
                 }
-                _ => {
-                    let index: usize = variable.parse()?;
+                "PRIMARY" => {
                     unsafe {
                         (&mut *variable_map)
                             .insert("SCREENSHOTS", Variable::SerdeJsonVector(Box::new(vec![])));
@@ -321,7 +320,7 @@ fn parse_instruction(
                     let function = move || {
                         let map = unsafe { &mut *variable_map };
 
-                        let image = capturer.capture(index)?;
+                        let image = capturer.capture_primary()?;
 
                         let mut file_vec = send_screenshots(&[image])?;
 
@@ -340,6 +339,7 @@ fn parse_instruction(
 
                     Ok(Some(function.into()))
                 }
+                _ => Ok(None),
             };
         }
         _ => Ok(None),

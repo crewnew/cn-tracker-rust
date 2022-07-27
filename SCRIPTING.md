@@ -35,7 +35,7 @@ Once you call these statements they'll give you access to the corresponding vari
 ## Miscellaneous
 
 - `PRINT` -> Used to print any variable to the console.
-- `CAPTURE_SCREEN` -> Captures the screen with the specified index or captures all screens. Accepts an `"INDEX"` or `"ALL"`.
+- `CAPTURE_SCREEN` -> Captures the primary screen or captures all screens. Accepts `"PRIMARY"` or `"ALL"`.
 
 ## Examples
 
