@@ -1,0 +1,13 @@
+query UserSsidQuery($data:String!) {
+	userSsid(where:{
+    	ssid:{
+        name:{
+          _eq:$data
+        }
+      }
+  }){
+    ssid {
+      id
+    }
+  }
+}

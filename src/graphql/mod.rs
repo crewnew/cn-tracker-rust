@@ -44,6 +44,8 @@ type Jsonb = Vec<u8>;
 
 mod project_rules;
 mod user_events;
+mod user_ssid;
 
 pub use project_rules::*;
 pub use user_events::*;
+pub use user_ssid::*;

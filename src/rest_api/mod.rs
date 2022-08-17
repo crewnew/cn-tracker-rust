@@ -37,17 +37,10 @@ struct Variables<'a> {
     data: &'a (dyn erased_serde::Serialize + Send + Sync),
 }
 
-#[derive(Debug, Clone, Deserialize)]
-struct Id {
-    id: String,
-}
-
 mod event;
-mod network;
 mod rule;
 mod screenshot;
 
 pub use event::*;
-pub use network::*;
 pub use rule::*;
 pub use screenshot::*;

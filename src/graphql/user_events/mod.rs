@@ -112,7 +112,7 @@ impl From<Event> for Variables {
             keyboard: Some(keyboard as i64),
             mouse: Some(mouse as i64),
             seconds_since_last_input: Some(seconds_since_last_input as i64),
-            ssid_id: network.map(|n| n.id),
+            ssid_id: network,
             user_event_windows: Some(user_event_window_arr_rel_insert_input),
         };
 

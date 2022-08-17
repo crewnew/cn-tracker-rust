@@ -2,10 +2,10 @@ use super::{Conditional, Executable, Instruction, Iterative, Rule, Variable, Var
 use crate::{
     capture::{
         create_capturer,
-        pc_common::{get_network_ssid, Event, NetworkInfo, Window, KEYSTROKES, MOUSE_CLICKS},
+        pc_common::{get_network_ssid, Event, Window, KEYSTROKES, MOUSE_CLICKS},
     },
-    graphql::send_user_event,
-    rest_api::{get_network_info, send_screenshots},
+    graphql::{get_or_insert_user_ssid, send_user_event},
+    rest_api::send_screenshots,
     scripting::ConditionalFn,
 };
 
@@ -201,9 +201,15 @@ fn parse_instruction(
                     _ => None,
                 };
 
-                let network: Option<NetworkInfo> = match map.get("NETWORK_SSID") {
+                let network: Option<String> = match map.get("NETWORK_SSID") {
                     Some(Variable::RcStr(string)) => {
-                        get_network_info(string.as_str()).map(|s| Some(s))?
+                        match get_or_insert_user_ssid(string.as_str()) {
+                            Ok(id) => Some(id),
+                            Err(err) => {
+                                error!("{}", err);
+                                None
+                            }
+                        }
                     }
                     _ => None,
                 };

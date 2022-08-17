@@ -21,12 +21,6 @@ pub static KEYSTROKES: AtomicUsize = AtomicUsize::new(0);
 pub static MOUSE_CLICKS: AtomicUsize = AtomicUsize::new(0);
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct NetworkInfo {
-    pub id: String,
-    pub name: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Event {
     #[serde(rename = "user_event_user_processes")]
     pub windows: Vec<Window>,
@@ -35,7 +29,7 @@ pub struct Event {
     #[serde(rename = "projectRuleId")]
     pub rule: Option<Rule>,
     #[serde(rename = "ssidId")]
-    pub network: Option<NetworkInfo>,
+    pub network: Option<String>,
     pub keyboard: usize,
     pub mouse: usize,
     pub seconds_since_last_input: u64,

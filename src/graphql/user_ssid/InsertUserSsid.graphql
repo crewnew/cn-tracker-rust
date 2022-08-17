@@ -1,0 +1,5 @@
+mutation InsertUserSsid($data: UserSsidInsertInput!) {
+  insertUserSsidOne(object: $data){
+    id
+  }
+}
