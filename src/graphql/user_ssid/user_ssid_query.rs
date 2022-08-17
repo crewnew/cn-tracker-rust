@@ -13,6 +13,8 @@ use self::user_ssid_query::*;
 pub fn get_user_ssid(ssid: impl Into<String>) -> anyhow::Result<String> {
     let request_body = UserSsidQuery::build_query(Variables { data: ssid.into() });
 
+    debug!("Requesting User SSID");
+
     let response_data: Response<ResponseData> = HTTP_CLIENT
         .post(ENDPOINT.as_str())
         .json(&request_body)
@@ -22,6 +24,8 @@ pub fn get_user_ssid(ssid: impl Into<String>) -> anyhow::Result<String> {
     if let Some(errors) = response_data.errors {
         anyhow::bail!("Query Failed with Errors: {:?}", errors);
     }
+
+    debug!("Received User SSID");
 
     Ok(response_data
         .data

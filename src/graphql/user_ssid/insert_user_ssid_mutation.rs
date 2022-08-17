@@ -38,6 +38,8 @@ pub fn insert_user_ssid(ssid: impl Into<String>) -> anyhow::Result<String> {
         data: user_ssid_insert_input,
     });
 
+    debug!("Inserting User SSID");
+
     let response_data: Response<ResponseData> = HTTP_CLIENT
         .post(ENDPOINT.as_str())
         .json(&request_body)
@@ -47,6 +49,8 @@ pub fn insert_user_ssid(ssid: impl Into<String>) -> anyhow::Result<String> {
     if let Some(errors) = response_data.errors {
         anyhow::bail!("Query Failed with Errors: {:?}", errors);
     }
+
+    debug!("Inserted User SSID");
 
     Ok(response_data.data.unwrap().insert_user_ssid_one.unwrap().id)
 }
