@@ -36,6 +36,8 @@ log = "0.4.17"
 hex = "0.4.3"
 image = { version = "0.24.3", default-features = false, features = ["jpeg"] }
 captis = "0.6.0"
+graphql_client = {version = "*", git = "https://github.com/Selyatin/graphql-client", branch = "skip_none"}
+serde_with = "2.0.0"
 
 [target.'cfg(windows)'.dependencies]
 winapi = { version = "0.3.9", features = ["std", "impl-default", "windef", "winuser", "processthreadsapi","handleapi", "psapi"] }

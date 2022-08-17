@@ -4,7 +4,8 @@ use crate::{
         create_capturer,
         pc_common::{get_network_ssid, Event, NetworkInfo, Window, KEYSTROKES, MOUSE_CLICKS},
     },
-    rest_api::{get_network_info, send_screenshots, SaveToDb},
+    graphql::send_user_event,
+    rest_api::{get_network_info, send_screenshots},
     scripting::ConditionalFn,
 };
 
@@ -156,9 +157,10 @@ fn parse_instruction(
             Ok(Some(function.into()))
         }
         "SAVE_TO_DB" => {
-            debug!("Parsing SAVE_TO_DB Statement");
             let function = move || {
-                let map = unsafe { &*variable_map };
+                debug!("Saving to DB");
+
+                let map = unsafe { &mut *variable_map };
 
                 let rule_id = match map.get("RULE_ID") {
                     Some(Variable::RcStr(string)) => (**string).clone(),
@@ -206,7 +208,7 @@ fn parse_instruction(
                     _ => None,
                 };
 
-                let mut event = Event {
+                let event = Event {
                     windows,
                     rule: Some(Rule {
                         id: rule_id,
@@ -222,10 +224,10 @@ fn parse_instruction(
                 KEYSTROKES.store(0, Ordering::SeqCst);
                 MOUSE_CLICKS.store(0, Ordering::SeqCst);
 
-                event.save_to_db()?;
+                send_user_event(event)?;
 
-                // Clear the screenshots, so that we don't repeat them on the next save.
-                if let Some(screenshots) = &mut event.screenshots {
+                if let Some(Variable::SerdeJsonVector(screenshots)) = map.get_mut("SCREENSHOTS") {
+                    // Clear the screenshots, so that we don't repeat them on the next save.
                     screenshots.clear();
                 }
 

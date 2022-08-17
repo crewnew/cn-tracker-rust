@@ -5,3 +5,4 @@ cn-tracker-graphql
 /*.sqlite3*
 /notes
 /result
+schema.graphql

@@ -9,8 +9,11 @@ extern crate enum_dispatch;
 extern crate lazy_static;
 #[macro_use]
 extern crate anyhow;
+#[macro_use]
+extern crate graphql_client;
 
 pub mod capture;
+pub mod graphql;
 pub mod rest_api;
 pub mod scripting;
 pub mod util;

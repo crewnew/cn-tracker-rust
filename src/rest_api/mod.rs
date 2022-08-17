@@ -1,7 +1,6 @@
-use lazy_static::lazy_static;
 use reqwest::{
     blocking::{self},
-    header::{self, HeaderMap, HeaderValue},
+    header::{HeaderMap, HeaderValue},
 };
 
 lazy_static! {
@@ -15,7 +14,7 @@ lazy_static! {
         let mut headers = HeaderMap::new();
         headers.insert(
             "X-Hasura-Admin-Secret",
-            HeaderValue::from_static("myadminsecret"),
+            HeaderValue::from_static("hello123"),
         );
         headers.insert(
             "X-Hasura-User-Id",

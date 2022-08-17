@@ -1,0 +1,12 @@
+query UserProjectRulesQuery {
+  userProject{
+    project {
+      projectRules{
+        id
+        rule {
+          body
+        }
+      }
+    }
+  }
+}

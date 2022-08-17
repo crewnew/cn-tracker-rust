@@ -28,13 +28,13 @@ pub struct NetworkInfo {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Event {
-    #[serde(rename = "windows_id")]
+    #[serde(rename = "user_event_user_processes")]
     pub windows: Vec<Window>,
-    #[serde(rename = "screenshots_id")]
+    #[serde(rename = "screenshots_id", skip)]
     pub screenshots: Option<Box<Vec<Value>>>,
-    #[serde(rename = "rule_id")]
+    #[serde(rename = "projectRuleId")]
     pub rule: Option<Rule>,
-    #[serde(rename = "network_id")]
+    #[serde(rename = "ssidId")]
     pub network: Option<NetworkInfo>,
     pub keyboard: usize,
     pub mouse: usize,

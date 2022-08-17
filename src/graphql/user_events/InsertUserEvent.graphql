@@ -1,0 +1,5 @@
+mutation InsertUserEvent($data: UserEventsInsertInput!) {
+  insertUserEventsOne(object:$data){
+    id
+  }
+}
