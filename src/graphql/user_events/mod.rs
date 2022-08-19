@@ -7,7 +7,7 @@ use crate::capture::pc_common::{Event, Process};
     query_path = "src/graphql/user_events/InsertUserEvent.graphql",
     response_derive = "Debug",
     normalization = "rust",
-    skip_serializing_none = "true"
+    skip_serializing_none
 )]
 pub struct InsertUserEvent;
 use insert_user_event::*;
@@ -61,8 +61,8 @@ impl From<Event> for Variables {
 
             let user_process = UserProcessesInsertInput {
                 id: None,
-                created_at: Some("now()".to_owned()),
-                updated_at: Some("now()".to_owned()),
+                created_at: None,
+                updated_at: None,
                 user: None,
                 user_event_windows: None,
                 user_id: Some(USER_ID.clone()),
@@ -82,8 +82,8 @@ impl From<Event> for Variables {
 
             let user_event_window = UserEventWindowsInsertInput {
                 id: None,
-                created_at: Some("now()".to_owned()),
-                updated_at: Some("now()".to_owned()),
+                created_at: None,
+                updated_at: None,
                 user_event_id: None,
                 user_process_id: None,
                 user_event: None,
@@ -104,8 +104,8 @@ impl From<Event> for Variables {
         let user_events_insert_input = UserEventsInsertInput {
             id: None,
             project_rule: None,
-            created_at: Some("now()".to_owned()),
-            updated_at: Some("now()".to_owned()),
+            created_at: None,
+            updated_at: None,
             user_event_files: None,
             user_id: Some(USER_ID.clone()),
             project_rule_id: rule.map(|r| r.id),

@@ -4,8 +4,8 @@ use super::*;
 #[graphql(
     schema_path = "schema.graphql",
     query_path = "src/graphql/user_ssid/UserSsidQuery.graphql",
-    skip_serializing_none = "true",
-    normalization = "rust"
+    normalization = "rust",
+    skip_serializing_none
 )]
 struct UserSsidQuery;
 use self::user_ssid_query::*;

@@ -5,7 +5,7 @@ use super::*;
     schema_path = "schema.graphql",
     query_path = "src/graphql/user_ssid/InsertUserSsid.graphql",
     normalization = "rust",
-    skip_serializing_none = "true"
+    skip_serializing_none
 )]
 struct InsertUserSsid;
 use insert_user_ssid::*;
